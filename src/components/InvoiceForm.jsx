@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
-import { Plus, Trash2, Save, Printer } from 'lucide-react';
+import { Plus, Trash2, Save, Printer, Search } from 'lucide-react';
 
-const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, isSaving }) => {
+const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, isSaving }) => {
     const { register, control, handleSubmit, watch, setValue, reset } = useForm({
         defaultValues: defaultValues || {
             type: 'INVOICE',
@@ -95,7 +95,12 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, isSaving }) => 
                     </div>
                     <div>
                         <label className="block text-xs text-gray-500">Project ID</label>
-                        <input {...register("project.id")} className="w-full border rounded p-1.5" />
+                        <div className="flex gap-2">
+                            <input {...register("project.id")} className="w-full border rounded p-1.5" placeholder="Enter ID to search" />
+                            <button type="button" onClick={() => onLoadProject(watch("project.id"))} className="bg-blue-600 text-white p-1.5 rounded hover:bg-blue-700" title="Load Project">
+                                <Search size={16} />
+                            </button>
+                        </div>
                     </div>
                     <div>
                         <label className="block text-xs text-gray-500">Date</label>

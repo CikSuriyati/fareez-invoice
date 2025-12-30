@@ -43,3 +43,14 @@ export const fetchNextId = async () => {
         return `JOB-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-001`;
     }
 };
+
+export const fetchProjectById = async (id) => {
+    try {
+        const response = await fetch(`${API_URL}?action=getProject&id=${id}`);
+        const data = await response.json();
+        return data;
+    } catch (e) {
+        console.error("Failed to fetch project:", e);
+        return { error: e.message };
+    }
+};

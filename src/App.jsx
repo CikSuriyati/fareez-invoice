@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import InvoiceForm from './components/InvoiceForm';
 import InvoicePreview from './components/InvoicePreview';
-import { saveInvoiceToSheet, fetchNextId } from './services/sheetApi';
+import { saveInvoiceToSheet, fetchNextId, fetchProjectById } from './services/sheetApi';
 import { FileText } from 'lucide-react';
 
 function App() {
@@ -48,6 +48,24 @@ function App() {
     window.print();
   };
 
+  const handleLoadProject = async (id) => {
+    if (!id) return alert("Please enter a Project ID to search.");
+
+    try {
+      const data = await fetchProjectById(id);
+      if (data.error) {
+        alert("Project not found: " + data.error);
+        return;
+      }
+
+      setInvoiceData(data);
+      alert("Project loaded!");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to load project.");
+    }
+  };
+
   const handleSave = async (data) => {
     setIsSaving(true);
     console.log("Saving to sheet...", data);
@@ -73,7 +91,7 @@ function App() {
       <nav className="bg-indigo-900 text-white p-4 shadow-md no-print">
         <div className="max-w-7xl mx-auto flex items-center gap-3">
           <FileText size={24} />
-          <h1 className="text-xl font-bold tracking-wide">Fareez Invoice Generator (v1.6)</h1>
+          <h1 className="text-xl font-bold tracking-wide">Fareez Invoice Generator (v1.7)</h1>
         </div>
       </nav>
 
@@ -87,6 +105,7 @@ function App() {
             onChange={handleFormChange}
             onPrint={handlePrint}
             onSave={handleSave}
+            onLoadProject={handleLoadProject}
             isSaving={isSaving}
           />
         </div>
