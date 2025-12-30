@@ -73,8 +73,13 @@ function App() {
   const handleLoadProject = async (id) => {
     if (!id) return alert("Please enter a Project ID to search.");
 
+    // Smart Search: Normalize prefixes
+    // If user enters INV-2025-..., QTN-..., RCT-... -> Convert to JOB-...
+    // This allows searching by the Document ID printed on the paper.
+    const normalizedId = id.toUpperCase().replace(/^(INV|QTN|RCT)/, 'JOB');
+
     try {
-      const data = await fetchProjectById(id);
+      const data = await fetchProjectById(normalizedId);
       if (data.error) {
         alert("Project not found: " + data.error);
         return;

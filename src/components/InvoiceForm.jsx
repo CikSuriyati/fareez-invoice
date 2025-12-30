@@ -35,9 +35,26 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
     // Watch all fields to trigger updates to parent
     const values = watch();
 
+    // Store previous values to prevent infinite loops
+    const prevValuesString = React.useRef(JSON.stringify(values));
+
     useEffect(() => {
+        const currentValuesString = JSON.stringify(values);
+
+        // Only proceed if values have actually changed in content
+        // We also check if we just reset (initial load) to ensure totals are calculated once.
+        if (prevValuesString.current !== currentValuesString) {
+            prevValuesString.current = currentValuesString;
+        } else {
+            // If strictly equal string, check if we need to run for totals (e.g. first render)
+            // But usually safe to skip to avoid loop
+            // return; 
+            // Actually, for the very first render, we do want to send data up. 
+            // But if parent re-render caused this, return.
+        }
+
         // Calculate totals automatically
-        const subtotal = values.items.reduce((acc, item) => acc + (Number(item.unitPrice) * Number(item.qty)), 0);
+        const subtotal = (values.items || []).reduce((acc, item) => acc + (Number(item.unitPrice || 0) * Number(item.qty || 0)), 0);
         const deposit = Number(values.depositPaid) || 0;
 
         // Inject calculated totals into the data passed to parent
@@ -50,8 +67,13 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
             }
         };
 
+        // We wrap this in a timeout or check deep equality with parent state? 
+        // Simplest: only fire if values changed (checked above)
+        // BUT: useEffect fires on every render if [values] is new ref.
+        // We need to NOT call onChange if content is same.
+
         onChange(dataWithTotals);
-    }, [values, onChange]);
+    }, [JSON.stringify(values), onChange]);
 
     return (
         <div className="bg-white p-6 shadow-lg rounded-lg border border-gray-200">
