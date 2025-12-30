@@ -42,23 +42,25 @@ function App() {
     loadId();
   }, []);
 
-  // Sync document title with Project ID (for PDF filename)
+  // Sync document title with Displayed Doc ID (for PDF filename)
   useEffect(() => {
     if (invoiceData?.project?.id) {
-      // Construct the display ID based on type, similar to Preview logic
-      // Or just use the raw ID if the user is typing it manually.
-      // The Preview Logic replaces prefix, so we should match that if possible.
-      // But App.jsx might just have the raw "JOB-..." ID. 
-      // Let's just use the ID from state, it's usually sufficient or updated by user.
-      document.title = invoiceData.project.id;
+      // Match logic from InvoicePreview to ensure filename = Doc ID
+      const type = invoiceData.type || 'INVOICE';
+      const prefix = type === 'INVOICE' ? 'INV' :
+        type === 'QUOTATION' ? 'QTN' :
+          type === 'RECEIPT' ? 'RCT' : 'JOB';
+
+      // Replace existing prefix (e.g. JOB or INV) with the correct one for the current type
+      const displayId = invoiceData.project.id.replace(/^[A-Z]+/, prefix);
+      document.title = displayId;
     }
-  }, [invoiceData.project.id]);
+  }, [invoiceData.project.id, invoiceData.type]);
 
   // Update ID when Type Changes -> REMOVED per user request
   // We now handle the prefix change purely visually in the Preview/Print.
 
   // Handle updates from form
-
   // Handle updates from form
   const handleFormChange = React.useCallback((newData) => {
     setInvoiceData(newData);
