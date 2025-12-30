@@ -17,6 +17,8 @@ function App() {
     totals: { total: 0, deposit: 0, balance: 0 }
   });
 
+  const [initialData, setInitialData] = useState(null); // Stable state for form resets
+
   const [isSaving, setIsSaving] = useState(false);
   const [baseId, setBaseId] = useState(''); // Stores "JOB-2025-XX-XXX"
 
@@ -29,6 +31,12 @@ function App() {
       setInvoiceData(prev => ({
         ...prev,
         project: { ...prev.project, id: nextId }
+      }));
+
+      // Also set initialData to update the form safely
+      setInitialData(prev => ({
+        ...invoiceData, // Use current default structure
+        project: { ...invoiceData.project, id: nextId }
       }));
     };
     loadId();
@@ -59,6 +67,7 @@ function App() {
       }
 
       setInvoiceData(data);
+      setInitialData(data); // Trigger form reset
       alert("Project loaded!");
     } catch (e) {
       console.error(e);
@@ -91,7 +100,7 @@ function App() {
       <nav className="bg-indigo-900 text-white p-4 shadow-md no-print">
         <div className="max-w-7xl mx-auto flex items-center gap-3">
           <FileText size={24} />
-          <h1 className="text-xl font-bold tracking-wide">Fareez Invoice Generator (v1.7)</h1>
+          <h1 className="text-xl font-bold tracking-wide">Fareez Invoice Generator (v1.8)</h1>
         </div>
       </nav>
 
@@ -101,7 +110,7 @@ function App() {
         {/* Left: Input Form */}
         <div className="w-full lg:w-5/12 no-print">
           <InvoiceForm
-            defaultValues={invoiceData}
+            defaultValues={initialData}
             onChange={handleFormChange}
             onPrint={handlePrint}
             onSave={handleSave}
