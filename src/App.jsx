@@ -10,7 +10,7 @@ function App() {
     status: 'UNPAID',
     project: {
       // defaults
-      id: 'LOADING...',
+      id: `INV-${new Date().getFullYear()}-XX-XXX`,
       date: new Date().toISOString().split('T')[0]
     },
     items: [],
@@ -85,7 +85,7 @@ function App() {
       <nav className="bg-indigo-900 text-white p-4 shadow-md no-print">
         <div className="max-w-7xl mx-auto flex items-center gap-3">
           <FileText size={24} />
-          <h1 className="text-xl font-bold tracking-wide">Fareez Invoice Generator (v1.3)</h1>
+          <h1 className="text-xl font-bold tracking-wide">Fareez Invoice Generator (v1.4)</h1>
         </div>
       </nav>
 

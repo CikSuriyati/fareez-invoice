@@ -97,13 +97,14 @@ function doPost(e) {
 
     // Save Items to 'Line Items' Tab
     var itemSheet = ss.getSheetByName(SHEET_ITEMS);
-    if (itemSheet && data.items && data.items.length > 0) {
+    if (!itemSheet) throw new Error("Sheet '" + SHEET_ITEMS + "' not found. Please create it.");
+
+    if (data.items && data.items.length > 0) {
       // User Requested Headers:
-      // Project ID, Room / Area, Installation Type, Description, 
-      // Unit Price(RM), Quantity, Materials Cost (RM), Transport Fee (RM), 
-      // Discount (RM), Total (RM), Status, Brand/Type, Model
+      // Timestamp, Project ID, Room / Area, Installation Type, Description, ...
 
       var itemRows = data.items.map(item => [
+        new Date(),                   // Timestamp
         projectId,                    // 0. Project ID
         item.room,                    // 1. Room / Area
         item.type,                    // 2. Installation Type

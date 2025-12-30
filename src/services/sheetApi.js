@@ -25,7 +25,15 @@ export const fetchNextId = async () => {
     if (API_URL.includes("YOUR_WEB_APP_URL")) return "JOB-XXXX-XX-001";
 
     try {
-        const response = await fetch(`${API_URL}?action=getNextId`, { method: "GET" });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+        const response = await fetch(`${API_URL}?action=getNextId`, {
+            method: "GET",
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const text = await response.text();
         return text;
