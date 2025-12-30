@@ -27,9 +27,11 @@ function getProjectById(projectId) {
     
     var pData = projectSheet.getDataRange().getValues();
     var projectRow = null;
+    var searchId = String(projectId).trim(); // Clean search ID
+
     // Start from 1 to skip header
     for (var i = 1; i < pData.length; i++) {
-      if (String(pData[i][1]) === String(projectId)) { // Col B is Project ID
+      if (String(pData[i][1]).trim() === searchId) { // Col B is Project ID
         projectRow = pData[i];
         break;
       }
@@ -69,7 +71,7 @@ function getProjectById(projectId) {
       // Start from 1 to skip header
       for (var j = 1; j < iData.length; j++) {
         // Index 1 is Project ID
-        if (String(iData[j][1]) === String(projectId)) {
+        if (String(iData[j][1]).trim() === searchId) {
           var row = iData[j];
           items.push({
             room: row[2],
@@ -152,17 +154,19 @@ function doPost(e) {
     var data = JSON.parse(e.postData.contents);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     
-    // Save Header to 'Projects' Tab
+    // ---------------------------------------------------------
+    // 1. SAVE/UPDATE HEADER in 'Projects' Tab
+    // ---------------------------------------------------------
     var projectSheet = ss.getSheetByName(SHEET_PROJECTS);
     if (!projectSheet) throw new Error("Sheet '" + SHEET_PROJECTS + "' not found");
 
     var timestamp = new Date();
     var projectId = data.project.id; 
-
+    
     // Describe items for summary
-    var strDesc = (data.items || []).map(i => i.type + ": " + i.desc).join(", ");
+    var strDesc = (data.items || []).map(function(i) { return i.type + ": " + i.desc; }).join(", ");
 
-    var projectRow = [
+    var projectRowData = [
       timestamp,
       projectId,
       data.project.customer,
@@ -176,39 +180,77 @@ function doPost(e) {
       data.totals.deposit,
       data.totals.balance,
       data.status,
-      "New"
+      "New" // Sync Status
     ];
 
-    projectSheet.appendRow(projectRow);
+    // Check if Project ID exists to Update vs Append
+    var pData = projectSheet.getDataRange().getValues();
+    var rowIndexToUpdate = -1;
+    var searchId = String(projectId).trim();
 
-    // Save Items to 'Line Items' Tab
+    // Start from 1 to skip header
+    for (var i = 1; i < pData.length; i++) {
+        if (String(pData[i][1]).trim() === searchId) { // Col B is Project ID
+            rowIndexToUpdate = i + 1; // 1-based index
+            break;
+        }
+    }
+
+    if (rowIndexToUpdate > 0) {
+        // UPDATE EXISTING ROW
+        // We preserve the original timestamp (Col A) if preferred, or update it. 
+        // Here we update everything to match the latest save.
+        projectSheet.getRange(rowIndexToUpdate, 1, 1, projectRowData.length).setValues([projectRowData]);
+    } else {
+        // APPEND NEW ROW
+        projectSheet.appendRow(projectRowData);
+    }
+
+    // ---------------------------------------------------------
+    // 2. SAVE/REPLACE ITEMS in 'Line Items' Tab
+    // ---------------------------------------------------------
     var itemSheet = ss.getSheetByName(SHEET_ITEMS);
     if (!itemSheet) throw new Error("Sheet '" + SHEET_ITEMS + "' not found. Please create it.");
+
+    // STRATEGY: Delete ALL existing items for this Project ID, then append new ones.
+    // This allows re-ordering, deleting, and adding items freely in the UI.
+    
+    var iData = itemSheet.getDataRange().getValues();
+    // We walk backwards to delete rows without messing up indices
+    for (var j = iData.length - 1; j >= 1; j--) {
+        if (String(iData[j][1]).trim() === searchId) {
+            itemSheet.deleteRow(j + 1);
+        }
+    }
 
     if (data.items && data.items.length > 0) {
       // User Requested Headers:
       // Timestamp, Project ID, Room / Area, Installation Type, Description, ...
 
-      var itemRows = data.items.map(item => [
-        new Date(),                   // Timestamp
-        projectId,                    // 0. Project ID
-        item.room,                    // 1. Room / Area
-        item.type,                    // 2. Installation Type
-        item.desc,                    // 3. Description
-        item.unitPrice,               // 4. Unit Price(RM)
-        item.qty,                     // 5. Quantity
-        item.materialCost || 0,       // 6. Materials Cost (RM)
-        item.transportFee || 0,       // 7. Transport Fee (RM)
-        item.discount || 0,           // 8. Discount (RM)
-        (item.unitPrice * item.qty),  // 9. Total (RM) - (Note: Logic matches frontend, ignores extras for now)
-        data.status || "New",         // 10. Status (Inherit from Project Status)
-        item.brand || "",             // 11. Brand/Type
-        item.model || ""              // 12. Model
-      ]);
+      var itemRows = data.items.map(function(item) {
+        return [
+          new Date(),                   // Timestamp
+          projectId,                    // 0. Project ID
+          item.room,                    // 1. Room / Area
+          item.type,                    // 2. Installation Type
+          item.desc,                    // 3. Description
+          item.unitPrice,               // 4. Unit Price(RM)
+          item.qty,                     // 5. Quantity
+          item.materialCost || 0,       // 6. Materials Cost (RM)
+          item.transportFee || 0,       // 7. Transport Fee (RM)
+          item.discount || 0,           // 8. Discount (RM)
+          (item.unitPrice * item.qty),  // 9. Total (RM)
+          data.status || "New",         // 10. Status
+          item.brand || "",             // 11. Brand/Type
+          item.model || ""              // 12. Model
+        ];
+      });
+      
+      // Bulk write for performance
       itemSheet.getRange(itemSheet.getLastRow() + 1, 1, itemRows.length, itemRows[0].length).setValues(itemRows);
     }
 
-    return jsonResponse({ result: "success", id: projectId });
+    return jsonResponse({ result: "success", id: projectId, action: rowIndexToUpdate > 0 ? "updated" : "created" });
 
   } catch (e) {
     return jsonResponse({ result: "error", error: e.toString() });

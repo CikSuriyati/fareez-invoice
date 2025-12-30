@@ -122,7 +122,7 @@ function App() {
         {/* Right: Preview (Standard A4) */}
         <div className="w-full lg:w-7/12 flex justify-center">
           {/* Scaled wrapper for small screens if needed, otherwise natural size */}
-          <div className="transform scale-90 origin-top lg:scale-100">
+          <div className="transform scale-90 origin-top lg:scale-100 invoice-scale-wrapper">
             <InvoicePreview data={invoiceData} />
           </div>
         </div>
