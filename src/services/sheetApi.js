@@ -2,9 +2,7 @@
 const API_URL = "https://script.google.com/macros/s/REDACTED_SECRET_5/exec";
 
 export const saveInvoiceToSheet = async (invoiceData) => {
-    if (API_URL === "YOUR_WEB_APP_URL_HERE") {
-        throw new Error("Please configure the API_URL in src/services/sheetApi.js");
-    }
+
 
     // Google Apps Script requires 'no-cors' for simple POSTs usually, or specialized handling.
     // Ideally we use text/plain to avoid preflight CORS issues with simple GAS triggers.
