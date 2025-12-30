@@ -15,7 +15,7 @@ const InvoicePreview = ({ data }) => {
   const emptyRows = Math.max(0, minRows - items.length);
 
   // Helper to render currency
-  const formatCurrency = (val) => (val || 0).toFixed(2);
+  const formatCurrency = (val) => Number(val || 0).toFixed(2);
 
   return (
     <div className="invoice-preview-container" id="printable-invoice">
@@ -77,6 +77,8 @@ const InvoicePreview = ({ data }) => {
               const showRoom = item.room !== prevItem.room;
               const showType = item.type !== prevItem.type || showRoom;
 
+              const itemTotal = Number(item.unitPrice || 0) * Number(item.qty || 0);
+
               return (
                 <tr key={index}>
                   <td>{showRoom ? <strong>{item.room}</strong> : ''}</td>
@@ -84,11 +86,11 @@ const InvoicePreview = ({ data }) => {
                   <td>{item.desc}</td>
                   <td>{formatCurrency(item.unitPrice)}</td>
                   <td>{item.qty}</td>
-                  <td><strong>{formatCurrency(item.total)}</strong></td>
+                  <td><strong>{formatCurrency(itemTotal)}</strong></td>
                 </tr>
               );
             })}
-            
+
             {/* Fill empty rows */}
             {Array.from({ length: emptyRows }).map((_, i) => (
               <tr key={`empty-${i}`} style={{ height: '22px' }}>
@@ -143,7 +145,7 @@ const InvoicePreview = ({ data }) => {
             </div>
             <div style={{ clear: 'both' }}></div>
           </div>
-          
+
           <div style={{ borderTop: '1px solid #ddd', paddingTop: '10px', fontSize: '9px', lineHeight: '1.4' }}>
             <strong>TERMS & CONDITIONS</strong>
             <ul style={{ paddingLeft: '15px', margin: '2px 0' }}>
