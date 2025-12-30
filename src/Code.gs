@@ -20,67 +20,84 @@ function doGet(e) {
 function getProjectById(projectId) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   
-  // 1. Fetch Project Details
-  var projectSheet = ss.getSheetByName(SHEET_PROJECTS);
-  if (!projectSheet) return jsonResponse({ error: "Projects sheet not found" });
-  
-  var pData = projectSheet.getDataRange().getValues();
-  var projectRow = null;
-  // Start from 1 to skip header
-  for (var i = 1; i < pData.length; i++) {
-    if (String(pData[i][1]) === String(projectId)) { // Col B is Project ID
-      projectRow = pData[i];
-      break;
-    }
-  }
-  
-  if (!projectRow) return jsonResponse({ error: "Project ID not found" });
-
-  var timestamp = new Date(projectRow[0]);
-  var dateStr = timestamp.toISOString().split('T')[0];
-
-  var projectData = {
-    id: projectRow[1],
-    customer: projectRow[2],
-    email: projectRow[3],
-    phone: projectRow[4],
-    address: projectRow[5],
-    date: dateStr
-  };
-  
-  // 2. Fetch Line Items
-  var itemSheet = ss.getSheetByName(SHEET_ITEMS);
-  var items = [];
-  if (itemSheet) {
-    var iData = itemSheet.getDataRange().getValues();
+  try {
+    // 1. Fetch Project Details
+    var projectSheet = ss.getSheetByName(SHEET_PROJECTS);
+    if (!projectSheet) return jsonResponse({ error: "Projects sheet not found" });
+    
+    var pData = projectSheet.getDataRange().getValues();
+    var projectRow = null;
     // Start from 1 to skip header
-    for (var j = 1; j < iData.length; j++) {
-      // Index 1 is Project ID (Index 0 is Timestamp)
-      if (String(iData[j][1]) === String(projectId)) {
-        var row = iData[j];
-        items.push({
-          room: row[2],
-          type: row[3],
-          desc: row[4],
-          unitPrice: row[5],
-          qty: row[6],
-          materialCost: row[7],
-          transportFee: row[8],
-          discount: row[9],
-          brand: row[12], 
-          model: row[13]
-        });
+    for (var i = 1; i < pData.length; i++) {
+      if (String(pData[i][1]) === String(projectId)) { // Col B is Project ID
+        projectRow = pData[i];
+        break;
       }
     }
-  }
+    
+    if (!projectRow) return jsonResponse({ error: "Project ID not found" });
 
-  return jsonResponse({
-    type: 'INVOICE', 
-    status: projectRow[12] || 'UNPAID',
-    project: projectData,
-    items: items,
-    depositPaid: projectRow[10] 
-  });
+    // Safe Date Parsing
+    var dateStr = "";
+    try {
+      if (projectRow[0]) {
+        var timestamp = new Date(projectRow[0]);
+        if (!isNaN(timestamp.getTime())) {
+          dateStr = timestamp.toISOString().split('T')[0];
+        }
+      }
+    } catch (err) {
+      // Fallback if date is garbage
+      dateStr = new Date().toISOString().split('T')[0];
+    }
+    if (!dateStr) dateStr = new Date().toISOString().split('T')[0];
+
+    var projectData = {
+      id: projectRow[1],
+      customer: projectRow[2],
+      email: projectRow[3],
+      phone: projectRow[4],
+      address: projectRow[5],
+      date: dateStr
+    };
+    
+    // 2. Fetch Line Items
+    var itemSheet = ss.getSheetByName(SHEET_ITEMS);
+    var items = [];
+    if (itemSheet) {
+      var iData = itemSheet.getDataRange().getValues();
+      // Start from 1 to skip header
+      for (var j = 1; j < iData.length; j++) {
+        // Index 1 is Project ID
+        if (String(iData[j][1]) === String(projectId)) {
+          var row = iData[j];
+          items.push({
+            room: row[2],
+            type: row[3],
+            desc: row[4],
+            unitPrice: row[5],
+            qty: row[6],
+            materialCost: row[7],
+            transportFee: row[8],
+            discount: row[9],
+            brand: row[12], 
+            model: row[13]
+          });
+        }
+      }
+    }
+
+    return jsonResponse({
+      type: 'INVOICE', 
+      status: projectRow[12] || 'UNPAID',
+      project: projectData,
+      items: items,
+      depositPaid: projectRow[10] 
+    });
+
+  } catch (e) {
+    return jsonResponse({ error: "Server Error: " + e.toString() });
+  }
 }
 
 function getNextProjectId() {
