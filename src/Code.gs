@@ -48,7 +48,7 @@ function getNextProjectId() {
   var nextNum = String(maxId + 1).padStart(3, '0');
   var nextId = `JOB-${year}-${month}-${nextNum}`; // Default base ID
 
-  return jsonResponse({ id: nextId });
+  return ContentService.createTextOutput(nextId);
 }
 
 function jsonResponse(obj) {
