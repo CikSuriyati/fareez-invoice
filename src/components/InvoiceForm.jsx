@@ -115,29 +115,54 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, isSaving }) => 
                 {/* Line Items */}
                 <div>
                     <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Line Items</h3>
-                    <div className="space-y-2">
+
+                    <div className="space-y-4">
                         {fields.map((field, index) => (
-                            <div key={field.id} className="flex gap-2 items-start border-b pb-2">
-                                <div className="w-1/4 space-y-1">
-                                    <input {...register(`items.${index}.room`)} placeholder="Room" className="w-full text-xs border rounded p-1" />
-                                    <input {...register(`items.${index}.type`)} placeholder="Type" className="w-full text-xs border rounded p-1" />
-                                </div>
-                                <div className="flex-1">
-                                    <input {...register(`items.${index}.desc`)} placeholder="Description" className="w-full text-sm border rounded p-1" />
-                                </div>
-                                <div className="w-20">
-                                    <input type="number" step="0.01" {...register(`items.${index}.unitPrice`)} placeholder="Price" className="w-full text-sm border rounded p-1" />
-                                </div>
-                                <div className="w-16">
-                                    <input type="number" {...register(`items.${index}.qty`)} placeholder="Qty" className="w-full text-sm border rounded p-1" />
-                                </div>
-                                <button type="button" onClick={() => remove(index)} className="text-red-500 hover:text-red-700 p-1">
+                            <div key={field.id} className="border p-3 rounded bg-gray-50 relative">
+                                <button type="button" onClick={() => remove(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700">
                                     <Trash2 size={16} />
                                 </button>
+
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2 pr-6">
+                                    <input {...register(`items.${index}.room`)} placeholder="Room/Area" className="text-xs border rounded p-1" />
+                                    <input {...register(`items.${index}.type`)} placeholder="Install Type" className="text-xs border rounded p-1" />
+                                    <input {...register(`items.${index}.brand`)} placeholder="Brand" className="text-xs border rounded p-1" />
+                                    <input {...register(`items.${index}.model`)} placeholder="Model" className="text-xs border rounded p-1" />
+                                </div>
+
+                                <div className="mb-2">
+                                    <input {...register(`items.${index}.desc`)} placeholder="Description" className="w-full text-sm border rounded p-1" />
+                                </div>
+
+                                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                                    <div>
+                                        <label className="block text-[10px] text-gray-500">Mat. Cost</label>
+                                        <input type="number" step="0.01" {...register(`items.${index}.materialCost`)} className="w-full text-xs border rounded p-1" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-gray-500">Transport</label>
+                                        <input type="number" step="0.01" {...register(`items.${index}.transportFee`)} className="w-full text-xs border rounded p-1" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-gray-500">Discount</label>
+                                        <input type="number" step="0.01" {...register(`items.${index}.discount`)} className="w-full text-xs border rounded p-1" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-gray-500">Unit Price</label>
+                                        <input type="number" step="0.01" {...register(`items.${index}.unitPrice`)} className="w-full text-xs border rounded p-1" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] text-gray-500">Qty</label>
+                                        <input type="number" {...register(`items.${index}.qty`)} className="w-full text-xs border rounded p-1" />
+                                    </div>
+                                </div>
                             </div>
                         ))}
                     </div>
-                    <button type="button" onClick={() => append({ room: '', type: '', desc: '', unitPrice: 0, qty: 1 })} className="mt-2 text-sm text-indigo-600 flex items-center gap-1 hover:text-indigo-800">
+                    <button type="button" onClick={() => append({
+                        room: '', type: '', brand: '', model: '', desc: '',
+                        materialCost: 0, transportFee: 0, discount: 0, unitPrice: 0, qty: 1
+                    })} className="mt-2 text-sm text-indigo-600 flex items-center gap-1 hover:text-indigo-800">
                         <Plus size={16} /> Add Item
                     </button>
                 </div>

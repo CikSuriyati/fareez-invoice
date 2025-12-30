@@ -64,13 +64,16 @@ function App() {
     setIsSaving(true);
     console.log("Saving to sheet...", data);
 
-    // TODO: Connect to Google Apps Script here
     try {
-      // Simulation delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      alert("Simulated Save: Data logged to console. Backend integration coming next.");
+      const result = await saveInvoiceToSheet(data);
+      if (result) {
+        alert("Invoice saved successfully!");
+        // Optional: Refresh ID or reset form? 
+        // For now, just notify success.
+      }
     } catch (e) {
       alert("Error saving: " + e.message);
+      console.error(e);
     } finally {
       setIsSaving(false);
     }

@@ -98,15 +98,25 @@ function doPost(e) {
     // Save Items to 'Line Items' Tab
     var itemSheet = ss.getSheetByName(SHEET_ITEMS);
     if (itemSheet && data.items && data.items.length > 0) {
+      // User Requested Headers:
+      // Project ID, Room / Area, Installation Type, Description, 
+      // Unit Price(RM), Quantity, Materials Cost (RM), Transport Fee (RM), 
+      // Discount (RM), Total (RM), Status, Brand/Type, Model
+
       var itemRows = data.items.map(item => [
-        projectId,
-        item.room,
-        item.type,
-        item.desc,
-        item.unitPrice,
-        item.qty,
-        0, 0, 0, // Mat, Trans, Disc defaults
-        (item.unitPrice * item.qty)
+        projectId,                    // 0. Project ID
+        item.room,                    // 1. Room / Area
+        item.type,                    // 2. Installation Type
+        item.desc,                    // 3. Description
+        item.unitPrice,               // 4. Unit Price(RM)
+        item.qty,                     // 5. Quantity
+        item.materialCost || 0,       // 6. Materials Cost (RM)
+        item.transportFee || 0,       // 7. Transport Fee (RM)
+        item.discount || 0,           // 8. Discount (RM)
+        (item.unitPrice * item.qty),  // 9. Total (RM) - (Note: Logic matches frontend, ignores extras for now)
+        data.status || "New",         // 10. Status (Inherit from Project Status)
+        item.brand || "",             // 11. Brand/Type
+        item.model || ""              // 12. Model
       ]);
       itemSheet.getRange(itemSheet.getLastRow() + 1, 1, itemRows.length, itemRows[0].length).setValues(itemRows);
     }
