@@ -70,23 +70,30 @@ function getProjectById(projectId) {
       var iData = itemSheet.getDataRange().getValues();
       // Start from 1 to skip header
       for (var j = 1; j < iData.length; j++) {
-        // Index 1 is Project ID
-        if (String(iData[j][1]).trim() === searchId) {
+        // Index 0 is Project ID (Column A)
+        if (String(iData[j][0]).trim() === searchId) {
           var row = iData[j];
           items.push({
-            room: row[2],
-            type: row[3],
-            desc: row[4],
-            unitPrice: row[5],
-            qty: row[6],
-            materialCost: row[7],
-            transportFee: row[8],
-            discount: row[9],
-            brand: row[12], 
-            model: row[13]
+            room: row[1],         // Col B
+            type: row[2],         // Col C
+            desc: row[3],         // Col D
+            unitPrice: row[4],    // Col E
+            qty: row[5],          // Col F
+            materialCost: row[6], // Col G
+            transportFee: row[7], // Col H
+            discount: row[8],     // Col I
+            brand: row[11],       // Col L (Brand/Type)
+            model: row[12] || ""  // Col M (Model) - Check if exists
           });
         }
       }
+    }
+
+    // DEBUG: Capture what we see in the first few rows of Line Items to diagnose column mismatch
+    var debugInfo = [];
+    if (itemSheet) {
+        var rawDebug = itemSheet.getDataRange().getValues().slice(0, 5); // Header + 4 rows
+        debugInfo = rawDebug.map(function(r) { return "ColA: " + r[0] + ", ColB: " + r[1]; });
     }
 
     return jsonResponse({
@@ -94,7 +101,8 @@ function getProjectById(projectId) {
       status: projectRow[12] || 'UNPAID',
       project: projectData,
       items: items,
-      depositPaid: projectRow[10] 
+      depositPaid: projectRow[10],
+      debug: debugInfo // <--- TEMPORARY DEBUG FIELD
     });
 
   } catch (e) {
