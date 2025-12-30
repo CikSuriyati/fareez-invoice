@@ -79,12 +79,12 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
         <div className="bg-white p-6 shadow-lg rounded-lg border border-gray-200">
             <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-bold text-gray-800">Invoice Details</h2>
-                <div className="space-x-2">
-                    <button onClick={onPrint} className="bg-gray-700 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-gray-800 transition">
-                        <Printer size={16} /> Print
+                <div className="flex gap-2">
+                    <button onClick={onPrint} className="bg-gray-700 text-white px-3 py-1.5 text-xs rounded flex items-center gap-1 hover:bg-gray-800 transition shadow-sm">
+                        <Printer size={14} /> Print
                     </button>
-                    <button onClick={handleSubmit(onSave)} disabled={isSaving} className="bg-indigo-700 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-indigo-800 transition disabled:opacity-50">
-                        <Save size={16} /> {isSaving ? 'Saving...' : 'Save to Sheet'}
+                    <button onClick={handleSubmit(onSave)} disabled={isSaving} className="bg-indigo-700 text-white px-3 py-1.5 text-xs rounded flex items-center gap-1 hover:bg-indigo-800 transition disabled:opacity-50 shadow-sm">
+                        <Save size={14} /> {isSaving ? 'Saving...' : 'Save to Sheet'}
                     </button>
                 </div>
             </div>
