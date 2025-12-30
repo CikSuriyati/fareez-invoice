@@ -42,6 +42,18 @@ function App() {
     loadId();
   }, []);
 
+  // Sync document title with Project ID (for PDF filename)
+  useEffect(() => {
+    if (invoiceData?.project?.id) {
+      // Construct the display ID based on type, similar to Preview logic
+      // Or just use the raw ID if the user is typing it manually.
+      // The Preview Logic replaces prefix, so we should match that if possible.
+      // But App.jsx might just have the raw "JOB-..." ID. 
+      // Let's just use the ID from state, it's usually sufficient or updated by user.
+      document.title = invoiceData.project.id;
+    }
+  }, [invoiceData.project.id]);
+
   // Update ID when Type Changes -> REMOVED per user request
   // We now handle the prefix change purely visually in the Preview/Print.
 
