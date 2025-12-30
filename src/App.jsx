@@ -52,9 +52,9 @@ function App() {
   }, [invoiceData.type, baseId]);
 
   // Handle updates from form
-  const handleFormChange = (newData) => {
+  const handleFormChange = React.useCallback((newData) => {
     setInvoiceData(newData);
-  };
+  }, []);
 
   const handlePrint = () => {
     window.print();

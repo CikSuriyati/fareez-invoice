@@ -60,7 +60,7 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, isSaving }) => 
                 </div>
             </div>
 
-            <form className="space-y-6">
+            <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
                 {/* Document Settings */}
                 <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded">
                     <div>
