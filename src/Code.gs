@@ -237,20 +237,19 @@ function doPost(e) {
 
       var itemRows = data.items.map(function(item) {
         return [
-          new Date(),                   // Timestamp
-          projectId,                    // 0. Project ID
-          item.room,                    // 1. Room / Area
-          item.type,                    // 2. Installation Type
-          item.desc,                    // 3. Description
-          item.unitPrice,               // 4. Unit Price(RM)
-          item.qty,                     // 5. Quantity
-          item.materialCost || 0,       // 6. Materials Cost (RM)
-          item.transportFee || 0,       // 7. Transport Fee (RM)
-          item.discount || 0,           // 8. Discount (RM)
-          (item.unitPrice * item.qty),  // 9. Total (RM)
-          data.status || "New",         // 10. Status
-          item.brand || "",             // 11. Brand/Type
-          item.model || ""              // 12. Model
+          projectId,                    // 0. Project ID (Column A)
+          item.room,                    // 1. Room / Area (Column B)
+          item.type,                    // 2. Installation Type (Column C)
+          item.desc,                    // 3. Description (Column D)
+          item.unitPrice,               // 4. Unit Price(RM) (Column E)
+          item.qty,                     // 5. Quantity (Column F)
+          item.materialCost || 0,       // 6. Materials Cost (RM) (Column G)
+          item.transportFee || 0,       // 7. Transport Fee (RM) (Column H)
+          item.discount || 0,           // 8. Discount (RM) (Column I)
+          (item.unitPrice * item.qty),  // 9. Total (RM) (Column J)
+          data.status || "New",         // 10. Status (Column K)
+          item.brand || "",             // 11. Brand/Type (Column L)
+          item.model || ""              // 12. Model (Column M)
         ];
       });
       
