@@ -3,7 +3,7 @@ import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { Plus, Trash2, Save, Printer } from 'lucide-react';
 
 const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, isSaving }) => {
-    const { register, control, handleSubmit, watch, setValue } = useForm({
+    const { register, control, handleSubmit, watch, setValue, reset } = useForm({
         defaultValues: defaultValues || {
             type: 'INVOICE',
             status: 'UNPAID',
@@ -19,6 +19,13 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, isSaving }) => 
             depositPaid: 0
         }
     });
+
+    // Reset form when defaultValues (from parent fetch) changes
+    useEffect(() => {
+        if (defaultValues) {
+            reset(defaultValues);
+        }
+    }, [defaultValues, reset]);
 
     const { fields, append, remove } = useFieldArray({
         control,

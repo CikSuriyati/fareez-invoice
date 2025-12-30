@@ -53,7 +53,11 @@ const InvoicePreview = ({ data }) => {
 
           <div className="meta-box">
             <strong>DATE:</strong> {project.date}<br />
-            <strong>DOC ID:</strong> {project.id}<br />
+            <strong>DOC ID:</strong> {project.id ? project.id.replace('JOB',
+              type === 'INVOICE' ? 'INV' :
+                type === 'QUOTATION' ? 'QTN' :
+                  type === 'RECEIPT' ? 'RCT' : 'JOB'
+            ) : ''}<br />
             <strong>STATUS:</strong> Generated
           </div>
         </div>

@@ -25,31 +25,19 @@ function App() {
     const loadId = async () => {
       const nextId = await fetchNextId();
       setBaseId(nextId);
-      // Initialize ID with correct prefix immediately
+      // Initialize ID (keep as JOB-...)
       setInvoiceData(prev => ({
         ...prev,
-        project: { ...prev.project, id: nextId.replace('JOB', 'INV') }
+        project: { ...prev.project, id: nextId }
       }));
     };
     loadId();
   }, []);
 
-  // Update ID when Type Changes
-  useEffect(() => {
-    if (!baseId) return;
+  // Update ID when Type Changes -> REMOVED per user request
+  // We now handle the prefix change purely visually in the Preview/Print.
 
-    let prefix = "JOB";
-    if (invoiceData.type === 'INVOICE') prefix = "INV";
-    else if (invoiceData.type === 'QUOTATION') prefix = "QTN";
-    else if (invoiceData.type === 'RECEIPT') prefix = "RCT";
-
-    const newId = baseId.replace("JOB", prefix);
-
-    setInvoiceData(prev => ({
-      ...prev,
-      project: { ...prev.project, id: newId }
-    }));
-  }, [invoiceData.type, baseId]);
+  // Handle updates from form
 
   // Handle updates from form
   const handleFormChange = React.useCallback((newData) => {
@@ -85,7 +73,7 @@ function App() {
       <nav className="bg-indigo-900 text-white p-4 shadow-md no-print">
         <div className="max-w-7xl mx-auto flex items-center gap-3">
           <FileText size={24} />
-          <h1 className="text-xl font-bold tracking-wide">Fareez Invoice Generator (v1.5)</h1>
+          <h1 className="text-xl font-bold tracking-wide">Fareez Invoice Generator (v1.6)</h1>
         </div>
       </nav>
 
