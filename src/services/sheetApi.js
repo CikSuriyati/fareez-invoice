@@ -26,7 +26,7 @@ export const fetchNextId = async () => {
 
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
         const response = await fetch(`${API_URL}?action=getNextId`, {
             method: "GET",
