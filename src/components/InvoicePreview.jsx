@@ -53,11 +53,12 @@ const InvoicePreview = ({ data }) => {
 
           <div className="meta-box">
             <strong>DATE:</strong> {project.date}<br />
-            <strong>DOC ID:</strong> {project.id ? project.id.replace('JOB',
-              type === 'INVOICE' ? 'INV' :
+            <strong>DOC ID:</strong> {project.id ? (() => {
+              const prefix = type === 'INVOICE' ? 'INV' :
                 type === 'QUOTATION' ? 'QTN' :
-                  type === 'RECEIPT' ? 'RCT' : 'JOB'
-            ) : ''}<br />
+                  type === 'RECEIPT' ? 'RCT' : 'JOB';
+              return project.id.replace(/^[A-Z]+/, prefix);
+            })() : ''}<br />
             <strong>STATUS:</strong> Generated
           </div>
         </div>
