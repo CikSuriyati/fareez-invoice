@@ -1,5 +1,5 @@
 // Replace this with your generated Web App URL after deployment
-const API_URL = "https://script.google.com/macros/s/REDACTED_SECRET_5/exec";
+const API_URL = "https://script.google.com/macros/s/REDACTED_SECRET_6/exec";
 
 export const saveInvoiceToSheet = async (invoiceData) => {
 
