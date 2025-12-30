@@ -25,9 +25,10 @@ export const fetchNextId = async () => {
     if (API_URL.includes("YOUR_WEB_APP_URL")) return "JOB-XXXX-XX-001";
 
     try {
-        const response = await fetch(`${API_URL}?action=getNextId`);
+        const response = await fetch(`${API_URL}?action=getNextId`, { method: "GET" });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const text = await response.text();
-        return text; // Should be just the ID string e.g. "JOB-2025-01-001"
+        return text;
     } catch (e) {
         console.error("Failed to fetch ID:", e);
         // Fallback if API fails
