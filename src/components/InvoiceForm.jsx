@@ -27,6 +27,27 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
         }
     }, [defaultValues, reset]);
 
+    // Auto-Payment Logic
+    const currentStatus = watch("status");
+    const currentType = watch("type");
+    const currentItems = watch("items");
+    const currentDiscount = watch("discount");
+
+    useEffect(() => {
+        // 1. If Receipt, force Status to PAID
+        if (currentType === 'RECEIPT' && currentStatus !== 'PAID') {
+            setValue('status', 'PAID');
+        }
+
+        // 2. If PAID, auto-fill Deposit with Full Net Amount
+        if (currentStatus === 'PAID') {
+            const subtotal = (currentItems || []).reduce((acc, item) => acc + (Number(item.unitPrice || 0) * Number(item.qty || 0)), 0);
+            const discount = Number(currentDiscount) || 0;
+            const netTotal = Math.max(0, subtotal - discount);
+            setValue('depositPaid', netTotal);
+        }
+    }, [currentStatus, currentType, JSON.stringify(currentItems), currentDiscount, setValue]);
+
     const { fields, append, remove } = useFieldArray({
         control,
         name: "items"
@@ -55,6 +76,7 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
 
         // Calculate totals automatically
         const subtotal = (values.items || []).reduce((acc, item) => acc + (Number(item.unitPrice || 0) * Number(item.qty || 0)), 0);
+        const discount = Number(values.discount) || 0;
         const deposit = Number(values.depositPaid) || 0;
 
         // Inject calculated totals into the data passed to parent
@@ -62,8 +84,9 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
             ...values,
             totals: {
                 total: subtotal,
+                discount: discount,
                 deposit: deposit,
-                balance: subtotal - deposit
+                balance: (subtotal - discount) - deposit
             }
         };
 
@@ -83,7 +106,22 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
                     <button onClick={onPrint} className="bg-gray-700 text-white px-3 py-1.5 text-xs rounded flex items-center gap-1 hover:bg-gray-800 transition shadow-sm">
                         <Printer size={14} /> Print
                     </button>
-                    <button onClick={handleSubmit(onSave)} disabled={isSaving} className="bg-indigo-700 text-white px-3 py-1.5 text-xs rounded flex items-center gap-1 hover:bg-indigo-800 transition disabled:opacity-50 shadow-sm">
+                    <button onClick={handleSubmit((formData) => {
+                        // Calculate totals to ensure they are sent to backend
+                        const subtotal = (formData.items || []).reduce((acc, item) => acc + (Number(item.unitPrice || 0) * Number(item.qty || 0)), 0);
+                        const discount = Number(formData.discount) || 0;
+                        const deposit = Number(formData.depositPaid) || 0;
+                        const fullData = {
+                            ...formData,
+                            totals: {
+                                total: subtotal,
+                                discount: discount,
+                                deposit: deposit,
+                                balance: (subtotal - discount) - deposit
+                            }
+                        };
+                        onSave(fullData);
+                    })} disabled={isSaving} className="bg-indigo-700 text-white px-3 py-1.5 text-xs rounded flex items-center gap-1 hover:bg-indigo-800 transition disabled:opacity-50 shadow-sm">
                         <Save size={14} /> {isSaving ? 'Saving...' : 'Save to Sheet'}
                     </button>
                 </div>
@@ -158,8 +196,18 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
                                 </button>
 
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2 pr-6">
-                                    <input {...register(`items.${index}.room`)} placeholder="Room/Area" className="text-xs border rounded p-1" />
-                                    <input {...register(`items.${index}.type`)} placeholder="Install Type" className="text-xs border rounded p-1" />
+                                    <input
+                                        {...register(`items.${index}.room`)}
+                                        list="room-options"
+                                        placeholder="Room/Area"
+                                        className="text-xs border rounded p-1"
+                                    />
+                                    <input
+                                        {...register(`items.${index}.type`)}
+                                        list="type-options"
+                                        placeholder="Install Type"
+                                        className="text-xs border rounded p-1"
+                                    />
                                     <input {...register(`items.${index}.brand`)} placeholder="Brand" className="text-xs border rounded p-1" />
                                     <input {...register(`items.${index}.model`)} placeholder="Model" className="text-xs border rounded p-1" />
                                 </div>
@@ -168,26 +216,22 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
                                     <input {...register(`items.${index}.desc`)} placeholder="Description" className="w-full text-sm border rounded p-1" />
                                 </div>
 
-                                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                                    <div>
-                                        <label className="block text-[10px] text-gray-500">Mat. Cost</label>
-                                        <input type="number" step="0.01" {...register(`items.${index}.materialCost`)} className="w-full text-xs border rounded p-1" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] text-gray-500">Transport</label>
-                                        <input type="number" step="0.01" {...register(`items.${index}.transportFee`)} className="w-full text-xs border rounded p-1" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] text-gray-500">Discount</label>
-                                        <input type="number" step="0.01" {...register(`items.${index}.discount`)} className="w-full text-xs border rounded p-1" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] text-gray-500">Unit Price</label>
-                                        <input type="number" step="0.01" {...register(`items.${index}.unitPrice`)} className="w-full text-xs border rounded p-1" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-[10px] text-gray-500">Qty</label>
-                                        <input type="number" {...register(`items.${index}.qty`)} className="w-full text-xs border rounded p-1" />
+                                <div className="grid grid-cols-3 gap-2">
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        {...register(`items.${index}.unitPrice`)}
+                                        placeholder="Unit Price"
+                                        className="text-xs border rounded p-1"
+                                    />
+                                    <input
+                                        type="number"
+                                        {...register(`items.${index}.qty`)}
+                                        placeholder="Qty"
+                                        className="text-xs border rounded p-1"
+                                    />
+                                    <div className="text-xs flex items-center bg-gray-100 px-2 rounded text-gray-600">
+                                        Total: {((watch(`items.${index}.unitPrice`) || 0) * (watch(`items.${index}.qty`) || 0)).toFixed(2)}
                                     </div>
                                 </div>
                             </div>
@@ -195,7 +239,7 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
                     </div>
                     <button type="button" onClick={() => append({
                         room: '', type: '', brand: '', model: '', desc: '',
-                        materialCost: 0, transportFee: 0, discount: 0, unitPrice: 0, qty: 1
+                        unitPrice: 0, qty: 1
                     })} className="mt-2 text-sm text-indigo-600 flex items-center gap-1 hover:text-indigo-800">
                         <Plus size={16} /> Add Item
                     </button>
@@ -204,13 +248,51 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
                 {/* Footer Totals */}
                 <div className="bg-gray-50 p-4 rounded text-right space-y-2">
                     <div>
+                        <label className="text-sm font-bold text-gray-600 mr-2">GLOBAL DISCOUNT (RM):</label>
+                        <input type="number" step="0.01" {...register("discount")} className="border border-red-300 rounded p-1 w-24 text-right text-red-600 font-bold" />
+                    </div>
+                    <div>
                         <label className="text-sm text-gray-600 mr-2">Deposit Paid (RM):</label>
                         <input type="number" step="0.01" {...register("depositPaid")} className="border rounded p-1 w-24 text-right" />
                     </div>
                     {/* Totals are calculated automatically in parent/preview */}
                 </div>
-            </form>
-        </div>
+
+                {/* DATALISTS DEFINITIONS */}
+                <datalist id="room-options">
+                    <option value="Living Room" />
+                    <option value="Yard/Outdoor" />
+                    <option value="Master Bedroom" />
+                    <option value="Bedroom 2" />
+                    <option value="Bedroom 3" />
+                    <option value="Toilet 1" />
+                    <option value="Toilet 2" />
+                    <option value="Bathroom" />
+                    <option value="Hall" />
+                    <option value="Entrance/Foyer" />
+                    <option value="Dining Area" />
+                    <option value="Balcony" />
+                    <option value="Kitchen" />
+                </datalist>
+
+                <datalist id="type-options">
+                    <option value="Lighting" />
+                    <option value="Fan" />
+                    <option value="Water Heater" />
+                    <option value="Door Bell" />
+                    <option value="TV" />
+                    <option value="Curtain/Blind" />
+                    <option value="Shower Curtain" />
+                    <option value="Mirror" />
+                    <option value="Door Lock" />
+                    <option value="Furniture Assembly" />
+                    <option value="Towel Rack" />
+                    <option value="Transportation" />
+                    <option value="Plumbing Minor Fix" />
+                    <option value="Installation" />
+                </datalist>
+            </form >
+        </div >
     );
 };
 

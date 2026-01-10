@@ -112,16 +112,24 @@ const InvoicePreview = ({ data }) => {
             <span className="total-amount">RM {formatCurrency(totals.total)}</span>
           </div>
 
-          {type === 'INVOICE' && (
+          {(type === 'INVOICE' || type === 'RECEIPT') && (
             <>
+              {Number(totals.discount) > 0 && (
+                <div style={{ marginTop: '5px', color: '#d32f2f' }}>
+                  <span className="total-label">LESS DISCOUNT:</span>
+                  <span><strong>- RM {formatCurrency(totals.discount)}</strong></span>
+                </div>
+              )}
               <div style={{ marginTop: '5px' }}>
-                <span className="total-label">DEPOSIT PAID:</span>
+                <span className="total-label">{type === 'RECEIPT' ? 'TOTAL PAID:' : 'DEPOSIT PAID:'}</span>
                 <span><strong>RM {formatCurrency(totals.deposit)}</strong></span>
               </div>
-              <div style={{ marginTop: '8px' }}>
-                <span className="total-label">BALANCE DUE:</span>
-                <span className="total-amount">RM {formatCurrency(totals.balance)}</span>
-              </div>
+              {type !== 'RECEIPT' && (
+                <div style={{ marginTop: '8px' }}>
+                  <span className="total-label">BALANCE DUE:</span>
+                  <span className="total-amount">RM {formatCurrency(totals.balance)}</span>
+                </div>
+              )}
             </>
           )}
 
@@ -156,7 +164,7 @@ const InvoicePreview = ({ data }) => {
             <ul style={{ paddingLeft: '15px', margin: '2px 0' }}>
               <li><strong>Inclusions:</strong> Prices listed are for labor and installation services only.</li>
               <li><strong>Exclusions:</strong> Cost of light bulbs, fans, and external wiring materials are not included unless specified.</li>
-              <li><strong>Transportation:</strong> A transportation fee applies based on project location. Charges exclude parking fees, toll charges, building entry fees, condo access fees, or special permits. If incurred, they will be added as separate line items.</li>
+              <li><strong>Transportation:</strong> A transportation fee applies based on project location. RM20 base fee + RM1.50 per km. Charges exclude parking fees, toll charges, building entry fees, condo access fees, or special permits. If incurred, they will be added as separate line items.</li>
               <li><strong>Liability:</strong> Fareez Installation Services is not responsible for payments made to incorrect account details.</li>
               <li><strong>Working Hours & After-Hours Charges:</strong>
                 <ul style={{ paddingLeft: '15px', margin: '2px 0' }}>

@@ -54,3 +54,94 @@ export const fetchProjectById = async (id) => {
         return { error: e.message };
     }
 };
+
+export const fetchDashboardStats = async (period = 'MONTH') => {
+    try {
+        const response = await fetch(`${API_URL}?action=getDashboardStats&period=${period}`);
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error("Error fetching dashboard stats:", error);
+        return null;
+    }
+};
+
+export const fetchExpenses = async (period = 'MONTH') => {
+    try {
+        const response = await fetch(`${API_URL}?action=getExpenses&period=${period}`);
+        const data = await response.json();
+        return data;
+    } catch (e) {
+        console.error("Failed to fetch expenses:", e);
+        return { error: e.message };
+    }
+};
+
+export const saveExpense = async (expenseData) => {
+    const payload = {
+        action: 'SAVE_EXPENSE',
+        expense: expenseData
+    };
+
+    // Using no-cors, so we can't read response, but we fire and forget
+    const response = await fetch(API_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: {
+            "Content-Type": "text/plain",
+        },
+        body: JSON.stringify(payload),
+    });
+    return true;
+};
+
+export const fetchInventoryStats = async () => {
+    try {
+        const response = await fetch(`${API_URL}?action=getInventoryStats`);
+        return await response.json();
+    } catch (e) {
+        console.error("Failed to fetch inventory stats:", e);
+        return { totalInventory: 0 };
+    }
+};
+
+export const fetchProjectProfit = async (projectId) => {
+    try {
+        const response = await fetch(`${API_URL}?action=getProjectProfit&id=${projectId}`);
+        return await response.json();
+    } catch (e) {
+        console.error("Failed to fetch profit:", e);
+        return { error: e.message };
+    }
+};
+
+export const fetchServiceReport = async (period) => {
+    try {
+        const response = await fetch(`${API_URL}?action=getServiceReport&period=${period}`);
+        return await response.json();
+    } catch (e) {
+        console.error("Failed to fetch report:", e);
+        return { error: e.message };
+    }
+};
+
+export const fetchCompanyReport = async (period = 'MONTH') => {
+    try {
+        const response = await fetch(`${API_URL}?action=getCompanyReport&period=${period}`);
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error("Error fetching company report:", error);
+        return null;
+    }
+};
+
+export const fetchProjectAnalytics = async (period = 'MONTH') => {
+    try {
+        const response = await fetch(`${API_URL}?action=getAllProjectsProfit&period=${period}`);
+        return await response.json();
+    } catch (e) {
+        console.error("Failed to fetch analytics:", e);
+        return { error: e.message };
+    }
+};

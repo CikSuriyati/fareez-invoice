@@ -1,6 +1,7 @@
 // CODE.GS
 const SHEET_PROJECTS = "Projects"; 
-const SHEET_ITEMS = "Line Items"; 
+const SHEET_ITEMS = "Line Items";
+const SHEET_EXPENSES = "Expenses";
 
 // 1. GET Request: Fetch Next ID
 function doGet(e) {
@@ -11,10 +12,523 @@ function doGet(e) {
   } else if (action === "getProject") {
     var id = e.parameter.id;
     return getProjectById(id);
+  } else if (action === "getDashboardStats") {
+    return getDashboardStats(e.parameter.period);
+  } else if (action === "getExpenses") {
+    return getExpenses(e.parameter.period); // PASS PERIOD HERE
+  } else if (action === "getProjectProfit") {
+    return getProjectProfit(e.parameter.id);
+  } else if (action === "getInventoryStats") {
+    return getInventoryStats();
+  } else if (action === "getAllProjectsProfit") {
+    return getAllProjectsProfit(e.parameter.period);
+  } else if (action === "getServiceReport") {
+    return getServiceReport(e.parameter.period); 
+  } else if (action === "getCompanyReport") {
+    return getCompanyReport(e.parameter.period);
   }
 
-  // Debugging or other reads
   return ContentService.createTextOutput("Action not specified or recognized.");
+}
+
+
+
+function getCompanyReport(period) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var pSheet = ss.getSheetByName(SHEET_PROJECTS);
+  var iSheet = ss.getSheetByName(SHEET_ITEMS);
+  var eSheet = ss.getSheetByName(SHEET_EXPENSES);
+
+  // 1. Determine Date Range
+  var now = new Date();
+  var pStart = new Date(1970, 0, 1);
+  var pEnd = new Date(2100, 0, 1);
+
+  if (!period || period === 'MONTH') {
+    pStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    pEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  } else if (period === 'LAST_MONTH') {
+    pStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    pEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  } else if (period === 'YEAR') {
+    pStart = new Date(now.getFullYear(), 0, 1);
+    pEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+  }
+
+  // 2. Financials & Project Stats
+  var financials = { sales: 0, collected: 0, expenses: 0, net: 0, unpaid: 0 };
+  var projectStats = { total: 0, paid: 0, unpaid: 0, cancelled: 0, quotation: 0 };
+  var projectDates = {};
+
+  if (pSheet) {
+    var pData = pSheet.getDataRange().getValues();
+    for (var i = 1; i < pData.length; i++) {
+        var row = pData[i];
+        var pid = String(row[1]).trim();
+        var date = new Date(row[0]);
+        var status = String(row[12]).toUpperCase();
+        var type = String(row[7]).toUpperCase();
+        var total = Number(row[9]) || 0;
+        var deposit = Number(row[10]) || 0;
+        var unpaid = Number(row[11]) || 0;
+
+        // Store Date for Item Linkage
+        // FIX: Only store if NOT Cancelled and NOT Quotation
+        // to prevent items from cancelled/quotes appearing in Service Report
+        if (pid && status !== 'CANCELLED' && !type.includes('QUOTATION')) {
+            projectDates[pid] = date;
+        }
+
+        if (date >= pStart && date <= pEnd) {
+             projectStats.total++;
+             if (status === 'CANCELLED') projectStats.cancelled++;
+             else if (status === 'PAID') projectStats.paid++;
+             else projectStats.unpaid++;
+             // Fins logic (Exclude Cancelled & Quotation)
+             if (status !== 'CANCELLED' && !type.includes('QUOTATION')) {
+                 var discount = Number(row[13]) || 0; // Col N
+                 /* Wait - Step 1460 changed this to Col O (14) ?? 
+                    Let's check Step 1460 diff.
+                    It updated `getAllProjectsProfit` to use index 14.
+                    But `getCompanyReport` (the block I am fixing) was seemingly *deleted* or corrupted.
+                    I should use index 14 (Col O) to be consistent with my "Fixing Discount Column Index" task.
+                 */
+                 discount = Number(row[14]) || 0; // Col O (Index 14) 
+                 
+                 var netTotal = total - discount;
+
+                 financials.sales += netTotal;
+                 if (status === 'PAID') {
+                     financials.collected += netTotal; 
+                 } else if (status === 'PARTIAL' || status === 'UNPAID') {
+                     financials.collected += deposit;
+                     financials.unpaid += (netTotal - deposit);
+                 }
+             }
+        }
+    }
+  }
+
+  // 3. Expenses
+  var expenseBreakdown = {};
+  if (eSheet) {
+      var eData = eSheet.getDataRange().getValues();
+      for (var k = 1; k < eData.length; k++) {
+          var eRow = eData[k];
+          var eDate = new Date(eRow[0]);
+          var store = String(eRow[3]).trim() || "Other"; 
+          var amount = parseFinanceValue(eRow[7]); 
+
+          if (eDate >= pStart && eDate <= pEnd) {
+              financials.expenses += amount;
+              if (!expenseBreakdown[store]) expenseBreakdown[store] = 0;
+              expenseBreakdown[store] += amount;
+          }
+      }
+  }
+  financials.net = financials.collected - financials.expenses;
+
+  // 4. Service Breakdown
+  var serviceStats = {};
+  if (iSheet) {
+      var iData = iSheet.getDataRange().getValues();
+      var headers = iData[0];
+      var colTotal = -1, colType = -1, colQty = -1;
+      for (var h=0; h<headers.length; h++) {
+        var hdr = String(headers[h]).toLowerCase().trim();
+        if (hdr === 'total' || hdr === 'total (rm)' || hdr === 'amount') colTotal = h;
+        if (hdr === 'type' || hdr === 'item type') colType = h;
+        if (hdr === 'qty' || hdr === 'quantity') colQty = h;
+      }
+      if (colType === -1) colType = 2; 
+      if (colQty === -1) colQty = 5;   
+      if (colTotal === -1) colTotal = 6; // Correct fallback to Col G (Index 6)
+
+      for (var j = 1; j < iData.length; j++) {
+         var itemPid = String(iData[j][0]).trim();
+         var pDate = projectDates[itemPid]; // Now returns undefined if Cancelled/Quote
+         if (!pDate) continue;
+
+         if (pDate >= pStart && pDate <= pEnd) {
+             var type = String(iData[j][colType] || "Other").trim();
+             var qty = Number(iData[j][colQty]) || 0;
+             var total = parseFinanceValue(iData[j][colTotal]);
+
+             if (!serviceStats[type]) serviceStats[type] = { qty: 0, revenue: 0 };
+             serviceStats[type].qty += qty;
+             serviceStats[type].revenue += total;
+         }
+      }
+  }
+
+  // Convert Maps to Arrays
+  var topServices = [];
+  for (var key in serviceStats) {
+      topServices.push({ type: key, qty: serviceStats[key].qty, revenue: serviceStats[key].revenue });
+  }
+  topServices.sort(function(a,b){ return b.revenue - a.revenue; }); 
+
+  var topExpenses = [];
+  for (var key in expenseBreakdown) {
+      topExpenses.push({ store: key, amount: expenseBreakdown[key] });
+  }
+  topExpenses.sort(function(a,b){ return b.amount - a.amount; });
+
+  return jsonResponse({
+      period: period || 'MONTH',
+      financials: financials,
+      projects: projectStats,
+      services: topServices.slice(0, 10), 
+      expenses: topExpenses.slice(0, 10) 
+  });
+}
+
+function getServiceReport(period) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var pSheet = ss.getSheetByName(SHEET_PROJECTS);
+  var iSheet = ss.getSheetByName(SHEET_ITEMS);
+  
+  if (!pSheet || !iSheet) return jsonResponse({ error: "Sheets missing" });
+
+  // 1. Map Project ID -> Date AND Aggregate Discounts
+  var pData = pSheet.getDataRange().getValues();
+  var projectDates = {};
+  var totalDiscounts = 0;
+  
+  var now = new Date();
+  var currentMonth = now.getMonth();
+  var currentYear = now.getFullYear();
+
+  // Determine filtering range first
+  // Re-use same logic logic as loop below or pre-calc? 
+  // Loop below checks logic inside the loop.
+  // We need to check logic here for discounts.
+  
+  for (var i = 1; i < pData.length; i++) {
+    var pid = String(pData[i][1]).trim();
+    var status = String(pData[i][12]).toUpperCase(); 
+    
+    if (status !== 'PAID') continue;
+
+    if (pid) {
+      var pDate = new Date(pData[i][0]);
+      projectDates[pid] = pDate;
+
+      // Check date range for discount aggregation
+      var include = false;
+      if (!period || period === 'ALL') {
+        include = true;
+      } else if (period === 'YEAR') {
+        if (pDate.getFullYear() === currentYear) include = true;
+      } else if (period === 'MONTH') {
+        if (pDate.getFullYear() === currentYear && pDate.getMonth() === currentMonth) include = true;
+      }
+
+      if (include) {
+         var discount = Number(pData[i][14]) || 0; // Col O (Index 14)
+         totalDiscounts += discount;
+      }
+    }
+  }
+
+  // 2. Aggregate Items (Existing Logic)
+  var iData = iSheet.getDataRange().getValues();
+  var stats = {}; 
+
+  // ... (Header detection logic) ...
+  var headers = iData[0];
+  var colTotal = -1;
+  var colType = -1;
+  var colQty = -1;
+
+  for (var h=0; h<headers.length; h++) {
+    var hdr = String(headers[h]).toLowerCase().trim();
+    if (hdr === 'total' || hdr === 'total (rm)' || hdr === 'amount') colTotal = h;
+    if (hdr === 'type' || hdr === 'item type') colType = h;
+    if (hdr === 'qty' || hdr === 'quantity') colQty = h;
+  }
+  if (colType === -1) colType = 2; 
+  if (colQty === -1) colQty = 5;   
+  if (colTotal === -1) colTotal = 9; 
+
+  for (var j = 1; j < iData.length; j++) {
+    var itemPid = String(iData[j][0]).trim();
+    var pDate = projectDates[itemPid];
+
+    // Filter by Date
+    if (!pDate) continue; 
+    
+    var include = false;
+    if (!period || period === 'ALL') {
+      include = true;
+    } else if (period === 'YEAR') {
+      if (pDate.getFullYear() === currentYear) include = true;
+    } else if (period === 'MONTH') {
+      if (pDate.getFullYear() === currentYear && pDate.getMonth() === currentMonth) include = true;
+    }
+
+    if (include) {
+      var type = iData[j][colType]; 
+      if (!type) type = "Other";
+
+      var qty = Number(iData[j][colQty]) || 0;
+      var total = Number(iData[j][colTotal]) || 0; 
+
+      if (!stats[type]) {
+        stats[type] = { qty: 0, revenue: 0 };
+      }
+      stats[type].qty += qty;
+      stats[type].revenue += total;
+    }
+  }
+
+  // Convert to Array
+  var report = [];
+  for (var key in stats) {
+    report.push({
+      type: key,
+      qty: stats[key].qty,
+      revenue: stats[key].revenue
+    });
+  }
+
+  // Add Global Discount Entry if exists
+  if (totalDiscounts > 0) {
+      report.push({
+          type: "Global Discounts",
+          qty: 0, // Or count of projects? Keep 0 to avoid skewing "Jobs" count? Or 1? 
+          // Qty 0 is safer for "Items Sold" metrics.
+          revenue: -totalDiscounts
+      });
+  }
+
+  // Sort by Revenue DESC (Profitability more important than qty for this view?)
+  // Original was Qty. Let's keep Qty but ensure Discount is at bottom?
+  report.sort(function(a, b) { return b.qty - a.qty; });
+
+  return jsonResponse({ report: report, period: period || 'ALL' });
+}
+
+
+// Helper to strip "RM", commas (,), and spaces from manually entered values.
+function parseFinanceValue(val) {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  var str = String(val).replace(/[^0-9.-]+/g, "");
+  return parseFloat(str) || 0;
+}
+
+function getInventoryStats() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_EXPENSES);
+  if (!sheet) return jsonResponse({ totalInventory: 0 });
+
+  var data = sheet.getDataRange().getValues();
+  // Headers: [Date, ProjectID, RefNo, Store, Desc, Qty, UnitPrice, Amount]
+  // Indices:   0       1         2       3      4     5       6        7
+
+  var totalInventory = 0;
+  
+  // Start from 1 to skip header
+  for (var i = 1; i < data.length; i++) {
+    var pid = String(data[i][1]).trim().toUpperCase(); // Project ID
+    var amt = parseFinanceValue(data[i][7]);   // Amount
+    
+    // User Requirement: Check if Project ID is specifically "INVENTORY" or "UNASSIGNED"
+    // Also keeping empty check just in case, or user specifically said "Inventory".
+    // "no u just need to check Project ID = Inventory"
+    if (pid === "INVENTORY") {
+        totalInventory += amt;
+    }
+  }
+
+  return jsonResponse({ totalInventory: totalInventory });
+}
+
+function getAllProjectsProfit(period) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var pSheet = ss.getSheetByName(SHEET_PROJECTS);
+  var eSheet = ss.getSheetByName(SHEET_EXPENSES);
+
+  // 1. Determine Date Range
+  var now = new Date();
+  var pStart = new Date(1970, 0, 1);
+  var pEnd = new Date(2100, 0, 1);
+
+   if (!period || period === 'MONTH') {
+    pStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    pEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  } else if (period === 'LAST_MONTH') {
+    pStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    pEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  } else if (period === 'YEAR') {
+    pStart = new Date(now.getFullYear(), 0, 1);
+    pEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+  }
+
+  // 2. Map Expenses by Project ID
+  var expenseMap = {}; // { 'JOB-101': 500.00 }
+  if (eSheet) {
+      var eData = eSheet.getDataRange().getValues();
+      for (var j = 1; j < eData.length; j++) {
+          var eDate = new Date(eData[j][0]);
+          if (period === 'ALL' || (eDate >= pStart && eDate <= pEnd)) {
+             var epid = String(eData[j][1]).trim().toUpperCase();
+             var amt = parseFinanceValue(eData[j][7]);
+             if (!expenseMap[epid]) expenseMap[epid] = 0;
+             expenseMap[epid] += amt;
+          }
+      }
+  }
+
+  // 3. Map Projects
+  var projects = [];
+  if (pSheet) {
+      var pData = pSheet.getDataRange().getValues();
+      for (var i = 1; i < pData.length; i++) {
+        var pid = String(pData[i][1]).trim().toUpperCase();
+        var date = new Date(pData[i][0]);
+        var status = pData[i][12]; 
+        
+        // Filter by Date
+        if (period !== 'ALL' && (date < pStart || date > pEnd)) continue;
+        if (status === 'CANCELLED') continue;
+
+        var revenue = Number(pData[i][9]) || 0;
+        var discount = Number(pData[i][14]) || 0; // Col O: Discount (Index 14)
+        var netRevenue = revenue - discount;
+        
+        var cost = expenseMap[pid] || 0;
+        
+        // Only show if there is financial activity OR recent project
+        if (netRevenue !== 0 || cost !== 0) {
+            projects.push({
+                id: pData[i][1], // maintain original casing for display
+                customer: pData[i][2],
+                status: status,
+                revenue: netRevenue,
+                cost: cost,
+                profit: netRevenue - cost
+            });
+        }
+      }
+  }
+
+  // 4. Find Orphaned Expenses (Expenses for projects not in the list/deleted)
+  // (Optional: skipped for simplicity, usually assume Project exists)
+
+  // Sort by Profit (Low to High - to see losses first)
+  projects.sort(function(a, b) { return a.profit - b.profit; });
+
+  return jsonResponse({ projects: projects });
+}
+
+function getProjectProfit(projectId) {
+  // ... (Single Project Logic preserved if needed, or can be deprecated)
+  // For now, keeping it as helper or legacy.
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+   var searchId = String(projectId).trim();
+  
+  // 1. Get Revenue from Projects Tab
+  var pSheet = ss.getSheetByName(SHEET_PROJECTS);
+  if (!pSheet) return jsonResponse({ error: "No Projects Sheet" });
+  
+  var pData = pSheet.getDataRange().getValues();
+  var revenue = 0;
+  var found = false;
+  
+  for (var i = 1; i < pData.length; i++) {
+    if (String(pData[i][1]).trim() === searchId) {
+       revenue = Number(pData[i][9]) || 0; // Total
+       found = true;
+       break;
+    }
+  }
+
+  // 2. Get Costs from Expenses Tab
+  var eSheet = ss.getSheetByName(SHEET_EXPENSES);
+  var totalCost = 0;
+  var expensesList = [];
+
+  if (eSheet) {
+      var eData = eSheet.getDataRange().getValues();
+      for (var j = 1; j < eData.length; j++) {
+         if (String(eData[j][1]).trim() === searchId) {
+             var amt = Number(eData[j][7]) || 0;
+             totalCost += amt;
+             expensesList.push({
+                 desc: eData[j][4],
+                 amount: amt
+             });
+         }
+      }
+  }
+  
+  return jsonResponse({
+      id: projectId,
+      found: found,
+      revenue: revenue,
+      cost: totalCost,
+      profit: revenue - totalCost,
+      details: expensesList
+  });
+}
+
+function getExpenses(period) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_EXPENSES);
+  if (!sheet) return jsonResponse({ error: "Expenses sheet not found", expenses: [] });
+
+  var data = sheet.getDataRange().getValues();
+  var expenses = [];
+
+  // Determine Date Range
+  var now = new Date();
+  var pStart = new Date(1970, 0, 1);
+  var pEnd = new Date(2100, 0, 1);
+
+  if (!period || period === 'MONTH') {
+    pStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    pEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  } else if (period === 'LAST_MONTH') {
+    pStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    pEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  } else if (period === 'YEAR') {
+    pStart = new Date(now.getFullYear(), 0, 1);
+    pEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+  }
+  
+  // Iterate all rows (skip header) backwards
+  for (var i = data.length - 1; i >= 1; i--) {
+    var row = data[i];
+    var dateVal = new Date(row[0]);
+    
+    // Only add if inside date range (or Period is ALL)
+    if (period === 'ALL' || (dateVal >= pStart && dateVal <= pEnd)) {
+        expenses.push({
+          date: dateToStr(row[0]),
+          projectId: row[1],
+          refNo: row[2],
+          store: row[3],
+          desc: row[4],
+          qty: row[5],
+          unitPrice: parseFinanceValue(row[6]),
+          amount: parseFinanceValue(row[7]),
+          category: row[8] || "General"
+        });
+    }
+  }
+  
+  return jsonResponse({ expenses: expenses });
+}
+
+function dateToStr(d) {
+    try {
+        if (!d) return "";
+        var dt = new Date(d);
+        if (isNaN(dt.getTime())) return "";
+        return dt.toISOString().split('T')[0];
+    } catch(e) { return ""; }
 }
 
 function getProjectById(projectId) {
@@ -49,7 +563,6 @@ function getProjectById(projectId) {
         }
       }
     } catch (err) {
-      // Fallback if date is garbage
       dateStr = new Date().toISOString().split('T')[0];
     }
     if (!dateStr) dateStr = new Date().toISOString().split('T')[0];
@@ -63,15 +576,22 @@ function getProjectById(projectId) {
       date: dateStr
     };
     
-    // 2. Fetch Line Items
-    var itemSheet = ss.getSheetByName(SHEET_ITEMS);
+    // Use GID 663549614 to match the Save Logic and ensure we read from correct source
+    var itemSheet = getSheetById(ss, 663549614);
+    if (!itemSheet) itemSheet = ss.getSheetByName(SHEET_ITEMS); // Fallback
+
     var items = [];
+    var searchIdUpper = String(projectRow[1]).trim().toUpperCase(); // Col B of Projects is the ID? No, passed in arg is better? 
+    // Wait, getProjectById takes 'projectId' arg.
+    // Line 521 uses 'searchId'. 
+    // Line 425: var searchId = String(projectId).trim();
+    // I should use that, normalized.
+    
     if (itemSheet) {
       var iData = itemSheet.getDataRange().getValues();
-      // Start from 1 to skip header
       for (var j = 1; j < iData.length; j++) {
-        // Index 0 is Project ID (Column A)
-        if (String(iData[j][0]).trim() === searchId) {
+        // Match Col A (Index 0)
+        if (String(iData[j][0]).trim().toUpperCase() === searchId.toUpperCase()) {
           var row = iData[j];
           items.push({
             room: row[1],         // Col B
@@ -79,21 +599,11 @@ function getProjectById(projectId) {
             desc: row[3],         // Col D
             unitPrice: row[4],    // Col E
             qty: row[5],          // Col F
-            materialCost: row[6], // Col G
-            transportFee: row[7], // Col H
-            discount: row[8],     // Col I
-            brand: row[11],       // Col L (Brand/Type)
-            model: row[12] || ""  // Col M (Model) - Check if exists
+            brand: row[8],        // Col I (was L)
+            model: row[9] || ""   // Col J (was M)
           });
         }
       }
-    }
-
-    // DEBUG: Capture what we see in the first few rows of Line Items to diagnose column mismatch
-    var debugInfo = [];
-    if (itemSheet) {
-        var rawDebug = itemSheet.getDataRange().getValues().slice(0, 5); // Header + 4 rows
-        debugInfo = rawDebug.map(function(r) { return "ColA: " + r[0] + ", ColB: " + r[1]; });
     }
 
     return jsonResponse({
@@ -102,7 +612,7 @@ function getProjectById(projectId) {
       project: projectData,
       items: items,
       depositPaid: projectRow[10],
-      debug: debugInfo // <--- TEMPORARY DEBUG FIELD
+      discount: Number(projectRow[14]) || 0 // Col O (Index 14)
     });
 
   } catch (e) {
@@ -116,15 +626,10 @@ function getNextProjectId() {
   if (!sheet) return jsonResponse({ error: "Sheet not found" });
 
   var data = sheet.getDataRange().getValues();
-  // Assume Row 1 is Headers
-  // Assume Column B (Index 1) is Project ID
-
   var now = new Date();
   var year = now.getFullYear();
-  var month = String(now.getMonth() + 1).padStart(2, '0'); // "01", "12"
+  var month = String(now.getMonth() + 1).padStart(2, '0');
   
-  // We look for ANY prefix (JOB, QTN, INV, RCT) because they share the same numbering sequence
-  // e.g. JOB-2025-12-001, INV-2025-12-002... next should be 003.
   var pattern = new RegExp(`.*-${year}-${month}-(\\d+)`);
 
   var maxId = 0;
@@ -142,7 +647,7 @@ function getNextProjectId() {
   }
 
   var nextNum = String(maxId + 1).padStart(3, '0');
-  var nextId = `JOB-${year}-${month}-${nextNum}`; // Default base ID
+  var nextId = `JOB-${year}-${month}-${nextNum}`; 
 
   return ContentService.createTextOutput(nextId);
 }
@@ -159,19 +664,60 @@ function doPost(e) {
   lock.tryLock(10000);
 
   try {
-    var data = JSON.parse(e.postData.contents);
+    var requestData = JSON.parse(e.postData.contents);
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    
+
+    // --- EXPENSE HANDLING ---
+    if (requestData.action === 'SAVE_EXPENSE') {
+      var expSheet = ss.getSheetByName(SHEET_EXPENSES);
+      if (!expSheet) throw new Error("Sheet '" + SHEET_EXPENSES + "' not found.");
+
+      var exp = requestData.expense;
+      
+      // User Specified Headers:
+      // Col A: Date
+      // Col B: Project ID
+      // Col C: Receipt/Invoice No
+      // Col D: Store
+      // Col E: Description
+      // Col F: Quantity
+      // Col G: Unit Price
+      // Col H: Amount
+
+      var row = [
+        new Date(),                 // Date (A)
+        exp.projectId || "",        // Project ID (B)
+        exp.refNo || "",            // Receipt/Invoice No (C)
+        exp.store || "",            // Store (D)
+        exp.desc || "",             // Description (E)
+        exp.qty || 1,               // Quantity (F)
+        exp.unitPrice || 0,         // Unit Price (G)
+        exp.amount || 0,            // Amount (H)
+        exp.category || "General"   // Category (I)
+      ];
+      expSheet.appendRow(row);
+      return jsonResponse({ result: "success", type: "expense" });
+    }
+
+    // --- INVOICE HANDLING (Default) ---
+    // If no action or action is undefined, assume it's the old Invoice/Project save
+    var data = requestData; // Standard Invoice Payload
+
     // ---------------------------------------------------------
     // 1. SAVE/UPDATE HEADER in 'Projects' Tab
     // ---------------------------------------------------------
     var projectSheet = ss.getSheetByName(SHEET_PROJECTS);
+    var projectSheet = ss.getSheetByName(SHEET_PROJECTS);
     if (!projectSheet) throw new Error("Sheet '" + SHEET_PROJECTS + "' not found");
+
+    // Ensure we have enough columns for Discount (Col O / Index 15)
+    if (projectSheet.getMaxColumns() < 15) {
+      projectSheet.insertColumnsAfter(projectSheet.getMaxColumns(), 15 - projectSheet.getMaxColumns());
+    }
 
     var timestamp = new Date();
     var projectId = data.project.id; 
     
-    // Describe items for summary
     var strDesc = (data.items || []).map(function(i) { return i.type + ": " + i.desc; }).join(", ");
 
     var projectRowData = [
@@ -188,74 +734,114 @@ function doPost(e) {
       data.totals.deposit,
       data.totals.balance,
       data.status,
-      "New" // Sync Status
+      "New", // Sync Status
+      data.discount || 0 // Col N: Global Discount
     ];
 
-    // Check if Project ID exists to Update vs Append
     var pData = projectSheet.getDataRange().getValues();
     var rowIndexToUpdate = -1;
     var searchId = String(projectId).trim();
 
-    // Start from 1 to skip header
     for (var i = 1; i < pData.length; i++) {
-        if (String(pData[i][1]).trim() === searchId) { // Col B is Project ID
-            rowIndexToUpdate = i + 1; // 1-based index
+        if (String(pData[i][1]).trim() === searchId) { 
+            rowIndexToUpdate = i + 1; 
             break;
         }
     }
 
     if (rowIndexToUpdate > 0) {
         // UPDATE EXISTING ROW
-        // We preserve the original timestamp (Col A) if preferred, or update it. 
-        // Here we update everything to match the latest save.
+        
+        // CHECK IF CANCELLED
+        var existingStatus = String(pData[rowIndexToUpdate - 1][12]).toUpperCase(); 
+        if (existingStatus === 'CANCELLED') {
+             return jsonResponse({ result: "error", error: "Cannot Modify a CANCELLED Project. Please create a new one." });
+        }
+
         projectSheet.getRange(rowIndexToUpdate, 1, 1, projectRowData.length).setValues([projectRowData]);
     } else {
-        // APPEND NEW ROW
         projectSheet.appendRow(projectRowData);
     }
 
     // ---------------------------------------------------------
     // 2. SAVE/REPLACE ITEMS in 'Line Items' Tab
     // ---------------------------------------------------------
-    var itemSheet = ss.getSheetByName(SHEET_ITEMS);
-    if (!itemSheet) throw new Error("Sheet '" + SHEET_ITEMS + "' not found. Please create it.");
-
-    // STRATEGY: Delete ALL existing items for this Project ID, then append new ones.
-    // This allows re-ordering, deleting, and adding items freely in the UI.
+    // ---------------------------------------------------------
+    // 2. SAVE/REPLACE ITEMS in 'Line Items' Tab
+    // ---------------------------------------------------------
+    // ---------------------------------------------------------
+    // 2. SAVE/REPLACE ITEMS in 'Line Items' Tab
+    // ---------------------------------------------------------
+    // Use GID to be 100% sure per user request (GID: 663549614)
+    var itemSheet = getSheetById(ss, 663549614);
+    if (!itemSheet) {
+        // Fallback to name if GID fails for some reason (e.g. copy of sheet)
+        itemSheet = ss.getSheetByName(SHEET_ITEMS);
+    }
+    if (!itemSheet) throw new Error("Sheet Line Items not found (GID: 663549614).");
     
-    var iData = itemSheet.getDataRange().getValues();
-    // We walk backwards to delete rows without messing up indices
-    for (var j = iData.length - 1; j >= 1; j--) {
-        if (String(iData[j][1]).trim() === searchId) {
-            itemSheet.deleteRow(j + 1);
-        }
+    // METHOD: Filter in memory and rewrite (More robust than deleting rows one by one)
+    var allData = itemSheet.getDataRange().getValues();
+    var header = allData[0];
+    var keptRows = [];
+    var searchIdsUpper = searchId.toUpperCase();
+    
+    // 1. Keep headers? No, we write header or assume it exists? 
+    // Usually clearContent leaves header if we start from row 2.
+    // Let's keep all rows that DO NOT match ID (Case Insensitive)
+    for (var i = 1; i < allData.length; i++) {
+         if (String(allData[i][0]).trim().toUpperCase() !== searchIdsUpper) {
+             keptRows.push(allData[i]);
+         }
     }
 
+    // 2. Prepare New Rows
+    var newRows = [];
+    var colCount = header ? header.length : 10; // Default to 10 if header missing (unlikely)
+    if (colCount < 10) colCount = 10; // Ensure at least 10 columns for our data
+    
     if (data.items && data.items.length > 0) {
-      // User Requested Headers:
-      // Timestamp, Project ID, Room / Area, Installation Type, Description, ...
-
-      var itemRows = data.items.map(function(item) {
-        return [
-          projectId,                    // 0. Project ID (Column A)
-          item.room,                    // 1. Room / Area (Column B)
-          item.type,                    // 2. Installation Type (Column C)
-          item.desc,                    // 3. Description (Column D)
-          item.unitPrice,               // 4. Unit Price(RM) (Column E)
-          item.qty,                     // 5. Quantity (Column F)
-          item.materialCost || 0,       // 6. Materials Cost (RM) (Column G)
-          item.transportFee || 0,       // 7. Transport Fee (RM) (Column H)
-          item.discount || 0,           // 8. Discount (RM) (Column I)
-          (item.unitPrice * item.qty),  // 9. Total (RM) (Column J)
-          data.status || "New",         // 10. Status (Column K)
-          item.brand || "",             // 11. Brand/Type (Column L)
-          item.model || ""              // 12. Model (Column M)
+      newRows = data.items.map(function(item) {
+        var row = [
+          projectId,                    
+          item.room || "",                    
+          item.type || "",                   
+          item.desc || "",                    
+          item.unitPrice || 0,               
+          item.qty || 1,                         
+          (item.unitPrice * item.qty) || 0,  // Total
+          data.status || "New",              // Status
+          item.brand || "",             
+          item.model || ""              
         ];
+        
+        // PAD ROW if header has more columns
+        while (row.length < colCount) {
+            row.push("");
+        }
+        return row;
       });
-      
-      // Bulk write for performance
-      itemSheet.getRange(itemSheet.getLastRow() + 1, 1, itemRows.length, itemRows[0].length).setValues(itemRows);
     }
+
+    // 3. Rewrite Sheet
+    itemSheet.clearContents(); // Clears all data
+    
+    var finalData = [];
+    if (header) {
+      finalData.push(header);
+    } else {
+      // Emergency Fallback if sheet was totally blank
+      finalData.push(['Project ID', 'Room / Area', 'Installation Type', 'Description', 'Unit Price(RM)', 'Quantity', 'Total (RM)', 'Status', 'Brand/Type', 'Model']);
+    }
+    
+    finalData = finalData.concat(keptRows).concat(newRows);
+    
+    // Write back everything
+    if (finalData.length > 0) {
+        itemSheet.getRange(1, 1, finalData.length, finalData[0].length).setValues(finalData);
+    }
+    
+    SpreadsheetApp.flush();
 
     return jsonResponse({ result: "success", id: projectId, action: rowIndexToUpdate > 0 ? "updated" : "created" });
 
@@ -264,4 +850,337 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function getDashboardStats(period) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_PROJECTS);
+  if (!sheet) return jsonResponse({ error: "Projects sheet not found" });
+
+  var data = sheet.getDataRange().getValues();
+
+  var totalSales = 0;      // Total Invoiced (Valid projects)
+  var totalCollected = 0;  // Total Cash Received (Deposit or Full)
+  var totalUnpaid = 0;     // Outstanding
+  var recentProjects = [];
+  
+  var now = new Date();
+  var pStart = new Date(1970, 0, 1);
+  var pEnd = new Date(2100, 0, 1);
+
+  // Determine Date Range
+  if (!period || period === 'MONTH') {
+    pStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    pEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  } else if (period === 'LAST_MONTH') {
+    pStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    pEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  } else if (period === 'YEAR') {
+    pStart = new Date(now.getFullYear(), 0, 1);
+    pEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+  } else if (period === 'ALL') {
+    // defaults ok
+  }
+
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    var date = new Date(row[0]);
+    var status = String(row[12]).toUpperCase(); 
+    var total = Number(row[9]) || 0;
+    var deposit = Number(row[10]) || 0;
+    var unpaid = Number(row[11]) || 0;
+
+    // Filter by Date
+    if (date >= pStart && date <= pEnd) {
+       // Filter out CANCELLED and QUOTATIONS from financial stats
+       // Quote is not a Sale yet.
+       var type = String(row[7]).toUpperCase();
+       var isQuote = type.includes("QUOTATION");
+       var isCancelled = (status === 'CANCELLED');
+
+       if (!isCancelled && !isQuote) {
+          var discount = Number(row[14]) || 0; // Col O (Index 14)
+          var netTotal = total - discount;
+
+          totalSales += netTotal;
+          
+          if (status === 'PAID') {
+            totalCollected += netTotal;
+          } else {
+             // PARTIAL or UNPAID -> Collect Deposit, rest is Unpaid
+             if (deposit > 0) {
+                 totalCollected += deposit;
+                 totalUnpaid += (netTotal - deposit);
+             } else {
+                 totalUnpaid += netTotal;
+             }
+          }
+       }
+    }
+  }
+
+  // ... (Project Loop Logic) ...
+  
+  // 3. Calculate Expenses for the same period
+  var eSheet = ss.getSheetByName(SHEET_EXPENSES);
+  var totalExpenses = 0;
+  
+  if (eSheet) {
+    var eData = eSheet.getDataRange().getValues();
+    // Col A: Date (Index 0), Col H: Amount (Index 7)
+    for (var k = 1; k < eData.length; k++) {
+       var eRow = eData[k];
+       var eDate = new Date(eRow[0]);
+       var eAmount = Number(eRow[7]) || 0;
+       
+       if (eDate >= pStart && eDate <= pEnd) {
+          totalExpenses += eAmount;
+       }
+    }
+  }
+
+  // Get Recent Projects
+  var count = 0;
+  for (var j = data.length - 1; j >= 1; j--) {
+    if (count >= 10) break;
+    var row = data[j];
+    var rDate = new Date(row[0]);
+    
+    // Only show if matches filter
+    if (rDate >= pStart && rDate <= pEnd) {
+        if (row[1]) { 
+          recentProjects.push({
+            id: row[1],
+            customer: row[2],
+            date: rDate.toISOString().split('T')[0],
+            total: row[9],
+            status: row[12],
+            type: String(row[7]).includes("QUOTATION") ? "QUOTATION" : "INVOICE"
+          });
+          count++;
+        }
+    }
+  }
+
+  return jsonResponse({
+    sales: totalSales,
+    collected: totalCollected,
+    expenses: totalExpenses,
+    net: (totalCollected - totalExpenses),
+    unpaid: totalUnpaid,
+    recent: recentProjects,
+    period: period || 'MONTH'
+  });
+}
+
+// -------------------------------------------------------------
+// LEGACY HANDYMAN TOOLS AUTOMATION
+// -------------------------------------------------------------
+
+const FOLDER_NAME = "Handyman Docs"; 
+
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('Handyman Tools')
+    .addItem('1. Generate Quote', 'generateQuote')
+    .addItem('2. Convert to Invoice', 'generateInvoice')
+    .addItem('3. Send Receipt', 'generateReceipt')
+    .addToUi();
+}
+
+function onFormSubmit(e) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_PROJECTS);
+  const data = sheet.getDataRange().getValues();
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0'); 
+  const prefix = `JOB-${year}-${month}-`; 
+  
+  let maxId = 0;
+  for (let i = 1; i < data.length; i++) {
+    const val = data[i][1]; 
+    if (val && typeof val === 'string' && val.startsWith(prefix)) {
+      const numPart = parseInt(val.replace(prefix, ""), 10);
+      if (!isNaN(numPart) && numPart > maxId) {
+        maxId = numPart;
+      }
+    }
+  }
+  let nextId = maxId + 1;
+  for (let i = 1; i < data.length; i++) {
+    if (!data[i][1] && data[i][0]) { 
+       const idStr = String(nextId).padStart(3, '0'); 
+       const newId = prefix + idStr;
+       sheet.getRange(i + 1, 2).setValue(newId);
+       nextId++; 
+    }
+  }
+}
+
+function generateQuote() { generateDocument("QUOTATION"); }
+function generateInvoice() { generateDocument("INVOICE"); }
+function generateReceipt() { generateDocument("RECEIPT"); }
+
+function generateDocument(type) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const projectSheet = ss.getSheetByName(SHEET_PROJECTS);
+  // Use GID 663549614 for consistency
+  var itemSheet = getSheetById(ss, 663549614);
+  if (!itemSheet) itemSheet = ss.getSheetByName(SHEET_ITEMS);
+
+  const ui = SpreadsheetApp.getUi();
+
+  const row = projectSheet.getActiveRange().getRow();
+  if (row === 1) { 
+    ui.alert("Please select a project row (not the header).");
+    return;
+  }
+  
+  const projectData = projectSheet.getRange(row, 1, 1, projectSheet.getLastColumn()).getValues()[0];
+  const projectId = projectData[1]; 
+  
+  if (!projectId) {
+    ui.alert("No Project ID found in this row.");
+    return;
+  }
+  
+  const allItems = itemSheet.getDataRange().getValues();
+  const lineItems = [];
+  let totalAmount = 0;
+  
+  // Normalize Search ID
+  const searchIdUpper = String(projectId).trim().toUpperCase();
+
+  // NEW Columns: [0]ID | [1]Room | [2]Type | [3]Desc | [4]Price | [5]Qty | [6]Total | [7]Status | [8]Brand | [9]Model
+  for (let i = 1; i < allItems.length; i++) {
+    if (String(allItems[i][0]).trim().toUpperCase() === searchIdUpper) {
+      
+      const room = allItems[i][1];
+      const itemType = allItems[i][2];
+      const desc = allItems[i][3];
+      const unitPrice = Number(allItems[i][4]) || 0;
+      const qty = Number(allItems[i][5]) || 0;
+      
+      // Removed Mat/Trans/Disc calculation
+      const total = (unitPrice * qty);
+      
+      lineItems.push({
+        room: room,
+        type: itemType,
+        desc: desc, 
+        unitPrice: unitPrice,
+        qty: qty,
+        total: total
+      });
+      totalAmount += total;
+    }
+  }
+
+  if (lineItems.length === 0) {
+    ui.alert("No items found in '" + SHEET_ITEMS + "' for Project ID: " + projectId);
+    return;
+  }
+
+  
+  let docPrefix = "";
+  if (type === "QUOTATION") docPrefix = "QTN";
+  else if (type === "INVOICE") docPrefix = "INV";
+  else if (type === "RECEIPT") docPrefix = "RCT";
+  
+  const docId = projectId.replace(/^(JOB|HM|INV)/, docPrefix);
+
+  try {
+    const template = HtmlService.createTemplateFromFile('template');
+    template.type = type; 
+    template.project = {
+      id: docId,       
+      originalId: projectId, 
+      customer: projectData[2], 
+      address: projectData[5],  
+      phone: projectData[4],    
+      email: projectData[3],    
+      date: new Date().toLocaleDateString()
+    };
+    template.items = lineItems;
+    template.total = totalAmount;
+
+    // --- WRITE TOTAL, DEPOSIT, BALANCE INTO PROJECT SHEET ---
+    const TOTAL_COL = 10;     // Col J
+    const DEPOSIT_COL = 11;   // Col K
+    const BALANCE_COL = 12;   // Col L
+    const DISCOUNT_COL = 15;  // Col O (Index 14 - accessed as 1-based? No ProjectData is row array)
+    // Wait generateDocument uses 'projectData' from getValues?? No.
+    // getProjectById returns single object.
+    // generateDocument uses projectData which is... passed as arg?? 
+    // Wait 'projectData' in generate document is... let me check generateDocument declaration.
+    // It's 'projectRow'. Array of values.
+    // So projectRow[14] is Col O.
+    // My previous edit used projectData[DISCOUNT_COL - 1].
+    // If I set DISCOUNT_COL = 15, then [14] is correct.
+    
+    const depositPaid = projectData[DEPOSIT_COL - 1] ? Number(projectData[DEPOSIT_COL - 1]) : 0;
+    const discount = projectData[DISCOUNT_COL - 1] ? Number(projectData[DISCOUNT_COL - 1]) : 0;
+    
+    // Net Total (after discount)
+    const netTotal = totalAmount - discount;
+    const balanceDue = netTotal - depositPaid;
+
+    template.deposit = depositPaid;
+    template.discount = discount;
+    template.balance = balanceDue;
+
+    let status = "UNPAID";
+    if (depositPaid >= netTotal && netTotal > 0) {
+      status = "PAID";
+    } else if (depositPaid > 0 && depositPaid < netTotal) {
+    } else if (depositPaid > 0 && depositPaid < totalAmount) {
+      status = "PARTIAL";
+    }
+
+    template.status = status;
+
+    // Write values to sheet
+    projectSheet.getRange(row, TOTAL_COL).setValue(totalAmount);
+    projectSheet.getRange(row, BALANCE_COL).setValue(balanceDue);
+    projectSheet.getRange(row, 13).setValue(status); 
+
+    // 4. Generate PDF
+    const htmlObj = template.evaluate();
+    const pdfBlob = Utilities.newBlob(htmlObj.getContent(), 'text/html', docId + ".html")
+                    .getAs(MimeType.PDF)
+                    .setName(docId + ".pdf");
+    
+    // 5. Save to Drive
+    const folder = getOrCreateFolder(FOLDER_NAME);
+    const file = folder.createFile(pdfBlob);
+    const fileUrl = file.getUrl();
+    
+    // 6. Update Sheet
+    projectSheet.getRange(row, 8).setValue(type + " Generated"); 
+    projectSheet.getRange(row, 9).setValue(fileUrl); 
+    
+    ui.alert("Success! " + type + " created: " + fileUrl);
+    
+  } catch (e) {
+    ui.alert("Error: " + e.toString() + ". Make sure 'template.html' exists!");
+  }
+}
+
+function getOrCreateFolder(name) {
+  const folders = DriveApp.getFoldersByName(name);
+  if (folders.hasNext()) {
+    return folders.next();
+  } else {
+    return DriveApp.createFolder(name);
+  }
+}
+
+function getSheetById(ss, id) {
+    var sheets = ss.getSheets();
+    for (var i = 0; i < sheets.length; i++) {
+        if (sheets[i].getSheetId() == id) {
+            return sheets[i];
+        }
+    }
+    return null;
 }
