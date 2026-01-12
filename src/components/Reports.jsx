@@ -112,7 +112,7 @@ const Reports = () => {
                             onClick={handleTestEmail}
                             className="bg-green-700 text-white px-4 py-2 rounded-lg shadow hover:bg-green-600 flex items-center gap-2 text-sm font-semibold"
                         >
-                            <Calendar size={16} /> Test Email
+                            <Calendar size={16} /> Send Report Now
                         </button>
                         <button
                             onClick={() => window.open(`?view=PRINTABLE_REPORT&period=${period}`, '_blank')}
