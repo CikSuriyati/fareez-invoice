@@ -238,7 +238,7 @@ function App() {
             <p>Best regards,</p>
             <p><strong>Muhammad Fareez</strong><br/>
             Fareez Installation Services<br/>
-            Phone: +6019-8961029</p>
+            Phone: +60 11-2549 5182</p>
           </div>
           <div style="text-align: center; padding: 15px; color: #666; font-size: 12px;">
             Thank you for your business!
