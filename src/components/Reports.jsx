@@ -52,12 +52,12 @@ const Reports = () => {
 
     const handleTestEmail = () => {
         openModal(
-            "Send Test Email",
-            "Are you sure you want to send a test monthly report to your email now?",
+            "Send Manual Report",
+            "Are you sure you want to generate and email the monthly report now?",
             async () => {
                 const { sendTestEmail } = await import('../services/sheetApi');
                 const res = await sendTestEmail();
-                alert(res.result || "Email sent!");
+                alert(res.result || "Report sent successfully!");
             }
         );
     };

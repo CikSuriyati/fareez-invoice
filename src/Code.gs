@@ -1079,22 +1079,62 @@ function setupMonthlyTrigger() {
 }
 
 function sendMonthlyReport() {
-  var userEmail = Session.getEffectiveUser().getEmail(); 
-  if (!userEmail) return "Error: No email found";
+  try {
+    // Session.getEffectiveUser() fails for anonymous web app users.
+    // Use hardcoded admin email or default.
+    var userEmail = "fareezfauzimy@gmail.com"; 
 
-  var rawData = getCompanyReportData('LAST_MONTH');
-  var html = buildReportHtml(rawData);
-  var blob = Utilities.newBlob(html, 'text/html', 'Monthly_Report.html');
-  var pdf = blob.getAs('application/pdf').setName('Monthly_Report_' + new Date().toISOString().slice(0,7) + '.pdf');
+    var rawData = getCompanyReportData('LAST_MONTH');
+    
+    // Calculate Readable Date
+    var d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    var months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    var periodStr = months[d.getMonth()] + " " + d.getFullYear();
 
-  MailApp.sendEmail({
-    to: userEmail,
-    subject: "Monthly Business Report - " + (new Date().toISOString().slice(0,7)),
-    htmlBody: "<h3>Monthly Details Attached</h3><p>Please find attached the automated monthly report.</p>",
-    attachments: [pdf]
-  });
+    var html = buildReportHtml(rawData);
+    // Basic validations
+    if (!rawData) throw new Error("No data returned from getCompanyReportData");
+    if (!html) throw new Error("HTML generation failed");
 
-  return "Sent to " + userEmail;
+    var blob = Utilities.newBlob(html, 'text/html', 'Monthly_Report.html');
+    var pdf = blob.getAs('application/pdf').setName('Report_' + periodStr.replace(' ', '_') + '.pdf');
+
+    // Professional Email Template
+    var emailBody = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+        <div style="background: #312e81; padding: 20px; text-align: center;">
+             <h2 style="color: white; margin: 0;">Monthly Performance Report</h2>
+        </div>
+        <div style="padding: 20px; border: 1px solid #ddd; border-top: none;">
+            <p>Dear Administrator,</p>
+            <p>Here is your automated business summary for <strong>${periodStr}</strong>.</p>
+            
+            <div style="background: #f3f4f6; padding: 15px; margin: 15px 0; border-radius: 5px;">
+                <p style="margin: 0; font-size: 13px; color: #666;"><strong>Performance Snapshot:</strong></p>
+                <ul style="margin: 5px 0 0 20px; font-size: 14px;">
+                   <li><strong>Total Sales:</strong> RM ${rawData.financials.sales.toFixed(2)}</li>
+                   <li><strong>Net Profit:</strong> RM ${rawData.financials.net.toFixed(2)}</li>
+                </ul>
+            </div>
+
+            <p>The full detailed PDF report is attached.</p>
+            <br>
+            <p style="font-size: 12px; color: #888;">Fareez Installation Services | Automated System</p>
+        </div>
+      </div>
+    `;
+
+    GmailApp.sendEmail(userEmail, "Business Report: " + periodStr, "Please find attached report.", {
+      htmlBody: emailBody,
+      attachments: [pdf],
+      name: "Fareez Reporting System"
+    });
+
+    return "Sent to " + userEmail;
+  } catch (e) {
+    return "Error: " + e.toString();
+  }
 }
 
 function sendInvoiceEmail(data) {
@@ -1254,19 +1294,33 @@ function getCompanyReportData(period) {
 function buildReportHtml(data) {
   var f = data.financials;
   
+  // Format period to "Month Year"
+  var periodStr = data.period;
+  if (data.period === 'LAST_MONTH') {
+      var d = new Date();
+      d.setMonth(d.getMonth() - 1);
+      var months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      periodStr = months[d.getMonth()] + " " + d.getFullYear();
+  }
+
   var css = `
-    body { font-family: 'Helvetica', sans-serif; padding: 40px; color: #333; }
-    h1 { color: #312e81; border-bottom: 2px solid #312e81; padding-bottom: 10px; }
-    .summary-grid { display: block; overflow: hidden; margin-bottom: 30px; }
-    .card { float: left; width: 22%; margin-right: 2%; background: #f9fafb; padding: 15px; border: 1px solid #e5e7eb; border-radius: 5px; }
+    @page { size: A4 portrait; margin: 10mm; }
+    body { font-family: 'Helvetica', sans-serif; color: #333; font-size: 10px; line-height: 1.3; }
+    h1 { color: #312e81; border-bottom: 2px solid #312e81; padding-bottom: 5px; font-size: 16px; margin: 0 0 5px 0; }
+    p.meta { color: #666; font-size: 9px; margin-bottom: 20px; }
+    .summary-grid { display: table; width: 100%; margin-bottom: 20px; table-layout: fixed; }
+    .card { display: table-cell; background: #f9fafb; padding: 10px; border: 1px solid #e5e7eb; border-radius: 4px; vertical-align: middle; }
+    .card + .card { border-left: 5px solid white; }
     .card.profit { background: #eef2ff; border-color: #c7d2fe; }
-    .card h3 { font-size: 12px; text-transform: uppercase; color: #6b7280; margin: 0 0 5px 0; }
-    .card p { font-size: 18px; font-weight: bold; margin: 0; }
-    .section { clear: both; margin-top: 30px; margin-bottom: 30px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-    th { text-align: left; background: #f3f4f6; padding: 8px; border-bottom: 2px solid #e5e7eb; }
-    td { padding: 8px; border-bottom: 1px solid #eee; }
+    .card h3 { font-size: 9px; text-transform: uppercase; color: #6b7280; margin: 0 0 2px 0; }
+    .card p { font-size: 14px; font-weight: bold; margin: 0; }
+    .section { margin-bottom: 15px; page-break-inside: avoid; }
+    h2 { font-size: 11px; background: #f3f4f6; padding: 5px; margin: 0 0 5px 0; color: #1f2937; }
+    table { width: 100%; border-collapse: collapse; font-size: 9px; }
+    th { text-align: left; background: #f9fafb; padding: 4px; border-bottom: 1px solid #e5e7eb; font-weight: bold; color: #4b5563; }
+    td { padding: 4px; border-bottom: 1px solid #f3f4f6; }
     .right { text-align: right; }
+    .footer { font-size: 8px; color: #9ca3af; margin-top: 10px; text-align: center; border-top: 1px solid #eee; padding-top: 5px; }
   `;
 
   var html = `
@@ -1274,7 +1328,7 @@ function buildReportHtml(data) {
       <head><style>${css}</style></head>
       <body>
         <h1>Monthly Business Report</h1>
-        <p>Period: ${data.period}</p>
+        <p class="meta">Period: <strong>${periodStr}</strong> | Generated: ${new Date().toLocaleDateString()}</p>
         
         <div class="summary-grid">
            <div class="card">
@@ -1296,11 +1350,11 @@ function buildReportHtml(data) {
         </div>
 
         <div class="section">
-           <h2>Top Services</h2>
+           <h2>Top Performing Services</h2>
            <table>
-             <thead><tr><th>Service</th><th class="right">Qty</th><th class="right">Revenue</th></tr></thead>
+             <thead><tr><th>Service Type</th><th class="right">Qty</th><th class="right">Revenue</th></tr></thead>
              <tbody>
-               ${data.services.map(s => `<tr><td>${s.type}</td><td class="right">${s.qty}</td><td class="right">RM ${s.revenue.toFixed(2)}</td></tr>`).join('')}
+               ${data.services.slice(0, 10).map(s => `<tr><td>${s.type}</td><td class="right">${s.qty}</td><td class="right">RM ${s.revenue.toFixed(2)}</td></tr>`).join('')}
              </tbody>
            </table>
         </div>
@@ -1308,14 +1362,16 @@ function buildReportHtml(data) {
         <div class="section">
            <h2>Top Expenses (By Store)</h2>
            <table>
-             <thead><tr><th>Store</th><th class="right">Amount</th></tr></thead>
+             <thead><tr><th>Store/Category</th><th class="right">Amount</th></tr></thead>
              <tbody>
-               ${data.expenses.map(e => `<tr><td>${e.store}</td><td class="right">RM ${e.amount.toFixed(2)}</td></tr>`).join('')}
+               ${data.expenses.slice(0, 10).map(e => `<tr><td>${e.store}</td><td class="right">RM ${e.amount.toFixed(2)}</td></tr>`).join('')}
              </tbody>
            </table>
         </div>
         
-        <p style="font-size: 10px; color: #999; margin-top: 50px;">Generated automatically by Fareez Invoice System.</p>
+        <div class="footer">
+          Automated Report by Fareez Installation Services | Generated via Google Apps Script
+        </div>
       </body>
     </html>
   `;
