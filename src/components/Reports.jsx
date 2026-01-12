@@ -26,6 +26,54 @@ const Reports = () => {
         return 'All Time';
     };
 
+    const [modalConfig, setModalConfig] = useState({ show: false, title: '', message: '', onConfirm: null });
+    const [actionLoading, setActionLoading] = useState(false);
+
+    const openModal = (title, message, action) => {
+        setModalConfig({ show: true, title, message, onConfirm: action });
+    };
+
+    const closeModal = () => {
+        setModalConfig({ ...modalConfig, show: false });
+    };
+
+    const confirmAction = async () => {
+        if (!modalConfig.onConfirm) return;
+        setActionLoading(true);
+        try {
+            await modalConfig.onConfirm();
+            closeModal();
+        } catch (e) {
+            alert("Error: " + e.message); // Fallback for error
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleTestEmail = () => {
+        openModal(
+            "Send Test Email",
+            "Are you sure you want to send a test monthly report to your email now?",
+            async () => {
+                const { sendTestEmail } = await import('../services/sheetApi');
+                const res = await sendTestEmail();
+                alert(res.result || "Email sent!");
+            }
+        );
+    };
+
+    const handleSetupTrigger = () => {
+        openModal(
+            "Enable Auto-Reporting",
+            "Are you sure you want to enable automated monthly reporting (1st of each month)?",
+            async () => {
+                const { setupAutomatedReporting } = await import('../services/sheetApi');
+                const res = await setupAutomatedReporting();
+                alert(res.result || "Automation enabled!");
+            }
+        );
+    };
+
     return (
         <div className="p-6">
             <div className="flex justify-between items-center mb-8">
@@ -33,7 +81,15 @@ const Reports = () => {
                     <BarChart className="text-indigo-600" /> Service Reports
                 </h2>
 
-                <div className="flex gap-4">
+                <div className="flex gap-4 items-center">
+                    {/* Auto-Report Button */}
+                    <button
+                        onClick={handleSetupTrigger}
+                        className="text-xs text-indigo-700 underline hover:text-indigo-900 mr-2"
+                    >
+                        Enable Monthly Auto-Email
+                    </button>
+
                     {/* Period Toggle */}
                     <div className="flex bg-white rounded-lg shadow p-1 h-fit">
                         {['MONTH', 'YEAR', 'ALL'].map((p) => (
@@ -53,14 +109,7 @@ const Reports = () => {
                     {/* Generate Report Button */}
                     <div className="flex gap-2">
                         <button
-                            onClick={async () => {
-                                if (confirm("Send automated monthly report to your email?")) {
-                                    alert("Sending...");
-                                    const { sendTestEmail } = await import('../services/sheetApi');
-                                    const res = await sendTestEmail();
-                                    alert(res.result || "Email command sent!");
-                                }
-                            }}
+                            onClick={handleTestEmail}
                             className="bg-green-700 text-white px-4 py-2 rounded-lg shadow hover:bg-green-600 flex items-center gap-2 text-sm font-semibold"
                         >
                             <Calendar size={16} /> Test Email
@@ -155,6 +204,40 @@ const Reports = () => {
                                     RM {report.reduce((acc, curr) => acc + curr.revenue, 0).toFixed(2)}
                                 </p>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Confirmation Modal */}
+            {modalConfig.show && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-lg shadow-xl w-96 transform scale-100 transition-all">
+                        <h3 className="text-xl font-bold mb-2 text-gray-800">{modalConfig.title}</h3>
+                        <p className="text-gray-600 mb-6">{modalConfig.message}</p>
+
+                        <div className="flex justify-end gap-2">
+                            <button
+                                onClick={closeModal}
+                                disabled={actionLoading}
+                                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded text-sm font-medium"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={confirmAction}
+                                disabled={actionLoading}
+                                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium flex items-center gap-2"
+                            >
+                                {actionLoading ? (
+                                    <>
+                                        <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                                        Processing...
+                                    </>
+                                ) : (
+                                    'Confirm'
+                                )}
+                            </button>
                         </div>
                     </div>
                 </div>

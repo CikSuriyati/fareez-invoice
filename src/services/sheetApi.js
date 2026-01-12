@@ -170,3 +170,18 @@ export const sendInvoiceEmail = async (payload) => {
     });
     return await response.json();
 };
+
+export const setupAutomatedReporting = async () => {
+    const data = { action: 'SETUP_TRIGGER' };
+    try {
+        const response = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify(data),
+        });
+        return await response.json();
+    } catch (e) {
+        console.error("Failed to setup trigger:", e);
+        return { error: e.message };
+    }
+};

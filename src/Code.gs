@@ -569,6 +569,11 @@ function doPost(e) {
        return jsonResponse({ result: res });
     }
 
+    if (requestData.action === 'SETUP_TRIGGER') {
+       setupMonthlyTrigger();
+       return jsonResponse({ result: "Trigger configured for 1st of each month." });
+    }
+
     // --- INVOICE HANDLING (Default) ---
     // If no action or action is undefined, assume it's the old Invoice/Project save
     var data = requestData; // Standard Invoice Payload
