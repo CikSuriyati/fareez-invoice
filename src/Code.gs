@@ -10,8 +10,11 @@ function doGet(e) {
   if (action === "getNextId") {
     return getNextProjectId();
   } else if (action === "getProject") {
-    var id = e.parameter.id;
-    return getProjectById(id);
+    return getProjectById(e.parameter.id);
+  } else if (action === "sendTestEmail") {
+     // Explicit endpoint for generic test
+     var result = sendMonthlyReport(); 
+     return jsonResponse({ result: result });
   } else if (action === "getDashboardStats") {
     return getDashboardStats(e.parameter.period);
   } else if (action === "getExpenses") {
@@ -33,155 +36,12 @@ function doGet(e) {
 
 
 
+
 function getCompanyReport(period) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var pSheet = ss.getSheetByName(SHEET_PROJECTS);
-  var iSheet = ss.getSheetByName(SHEET_ITEMS);
-  var eSheet = ss.getSheetByName(SHEET_EXPENSES);
-
-  // 1. Determine Date Range
-  var now = new Date();
-  var pStart = new Date(1970, 0, 1);
-  var pEnd = new Date(2100, 0, 1);
-
-  if (!period || period === 'MONTH') {
-    pStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    pEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-  } else if (period === 'LAST_MONTH') {
-    pStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    pEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
-  } else if (period === 'YEAR') {
-    pStart = new Date(now.getFullYear(), 0, 1);
-    pEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
-  }
-
-  // 2. Financials & Project Stats
-  var financials = { sales: 0, collected: 0, expenses: 0, net: 0, unpaid: 0 };
-  var projectStats = { total: 0, paid: 0, unpaid: 0, cancelled: 0, quotation: 0 };
-  var projectDates = {};
-
-  if (pSheet) {
-    var pData = pSheet.getDataRange().getValues();
-    for (var i = 1; i < pData.length; i++) {
-        var row = pData[i];
-        var pid = String(row[1]).trim();
-        var date = new Date(row[0]);
-        var status = String(row[12]).toUpperCase();
-        var type = String(row[7]).toUpperCase();
-        var total = Number(row[9]) || 0;
-        var deposit = Number(row[10]) || 0;
-        var unpaid = Number(row[11]) || 0;
-
-        // Store Date for Item Linkage
-        // FIX: Only store if NOT Cancelled and NOT Quotation
-        // to prevent items from cancelled/quotes appearing in Service Report
-        if (pid && status !== 'CANCELLED' && !type.includes('QUOTATION')) {
-            projectDates[pid] = date;
-        }
-
-        if (date >= pStart && date <= pEnd) {
-             projectStats.total++;
-             if (status === 'CANCELLED') projectStats.cancelled++;
-             else if (status === 'PAID') projectStats.paid++;
-             else projectStats.unpaid++;
-             // Fins logic (Exclude Cancelled & Quotation)
-             if (status !== 'CANCELLED' && !type.includes('QUOTATION')) {
-                 var discount = Number(row[13]) || 0; // Col N
-                 /* Wait - Step 1460 changed this to Col O (14) ?? 
-                    Let's check Step 1460 diff.
-                    It updated `getAllProjectsProfit` to use index 14.
-                    But `getCompanyReport` (the block I am fixing) was seemingly *deleted* or corrupted.
-                    I should use index 14 (Col O) to be consistent with my "Fixing Discount Column Index" task.
-                 */
-                 discount = Number(row[14]) || 0; // Col O (Index 14) 
-                 
-                 var netTotal = total - discount;
-
-                 financials.sales += netTotal;
-                 if (status === 'PAID') {
-                     financials.collected += netTotal; 
-                 } else if (status === 'PARTIAL' || status === 'UNPAID') {
-                     financials.collected += deposit;
-                     financials.unpaid += (netTotal - deposit);
-                 }
-             }
-        }
-    }
-  }
-
-  // 3. Expenses
-  var expenseBreakdown = {};
-  if (eSheet) {
-      var eData = eSheet.getDataRange().getValues();
-      for (var k = 1; k < eData.length; k++) {
-          var eRow = eData[k];
-          var eDate = new Date(eRow[0]);
-          var store = String(eRow[3]).trim() || "Other"; 
-          var amount = parseFinanceValue(eRow[7]); 
-
-          if (eDate >= pStart && eDate <= pEnd) {
-              financials.expenses += amount;
-              if (!expenseBreakdown[store]) expenseBreakdown[store] = 0;
-              expenseBreakdown[store] += amount;
-          }
-      }
-  }
-  financials.net = financials.collected - financials.expenses;
-
-  // 4. Service Breakdown
-  var serviceStats = {};
-  if (iSheet) {
-      var iData = iSheet.getDataRange().getValues();
-      var headers = iData[0];
-      var colTotal = -1, colType = -1, colQty = -1;
-      for (var h=0; h<headers.length; h++) {
-        var hdr = String(headers[h]).toLowerCase().trim();
-        if (hdr === 'total' || hdr === 'total (rm)' || hdr === 'amount') colTotal = h;
-        if (hdr === 'type' || hdr === 'item type') colType = h;
-        if (hdr === 'qty' || hdr === 'quantity') colQty = h;
-      }
-      if (colType === -1) colType = 2; 
-      if (colQty === -1) colQty = 5;   
-      if (colTotal === -1) colTotal = 6; // Correct fallback to Col G (Index 6)
-
-      for (var j = 1; j < iData.length; j++) {
-         var itemPid = String(iData[j][0]).trim();
-         var pDate = projectDates[itemPid]; // Now returns undefined if Cancelled/Quote
-         if (!pDate) continue;
-
-         if (pDate >= pStart && pDate <= pEnd) {
-             var type = String(iData[j][colType] || "Other").trim();
-             var qty = Number(iData[j][colQty]) || 0;
-             var total = parseFinanceValue(iData[j][colTotal]);
-
-             if (!serviceStats[type]) serviceStats[type] = { qty: 0, revenue: 0 };
-             serviceStats[type].qty += qty;
-             serviceStats[type].revenue += total;
-         }
-      }
-  }
-
-  // Convert Maps to Arrays
-  var topServices = [];
-  for (var key in serviceStats) {
-      topServices.push({ type: key, qty: serviceStats[key].qty, revenue: serviceStats[key].revenue });
-  }
-  topServices.sort(function(a,b){ return b.revenue - a.revenue; }); 
-
-  var topExpenses = [];
-  for (var key in expenseBreakdown) {
-      topExpenses.push({ store: key, amount: expenseBreakdown[key] });
-  }
-  topExpenses.sort(function(a,b){ return b.amount - a.amount; });
-
-  return jsonResponse({
-      period: period || 'MONTH',
-      financials: financials,
-      projects: projectStats,
-      services: topServices.slice(0, 10), 
-      expenses: topExpenses.slice(0, 10) 
-  });
+  var data = getCompanyReportData(period);
+  return jsonResponse(data);
 }
+
 
 function getServiceReport(period) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -699,6 +559,16 @@ function doPost(e) {
       return jsonResponse({ result: "success", type: "expense" });
     }
 
+    if (requestData.action === 'SEND_TEST_EMAIL') {
+       var res = sendMonthlyReport();
+       return jsonResponse({ result: res });
+    }
+
+    if (requestData.action === 'SEND_INVOICE_EMAIL') {
+       var res = sendInvoiceEmail(requestData.payload);
+       return jsonResponse({ result: res });
+    }
+
     // --- INVOICE HANDLING (Default) ---
     // If no action or action is undefined, assume it's the old Invoice/Project save
     var data = requestData; // Standard Invoice Payload
@@ -1183,4 +1053,267 @@ function getSheetById(ss, id) {
         }
     }
     return null;
+}
+
+
+// --- AUTOMATED EMAIL REPORTING & INVOICE EMAILING ---
+
+function setupMonthlyTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'sendMonthlyReport') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+
+  ScriptApp.newTrigger('sendMonthlyReport')
+      .timeBased()
+      .onMonthDay(1)
+      .atHour(9)
+      .create();
+}
+
+function sendMonthlyReport() {
+  var userEmail = Session.getEffectiveUser().getEmail(); 
+  if (!userEmail) return "Error: No email found";
+
+  var rawData = getCompanyReportData('LAST_MONTH');
+  var html = buildReportHtml(rawData);
+  var blob = Utilities.newBlob(html, 'text/html', 'Monthly_Report.html');
+  var pdf = blob.getAs('application/pdf').setName('Monthly_Report_' + new Date().toISOString().slice(0,7) + '.pdf');
+
+  MailApp.sendEmail({
+    to: userEmail,
+    subject: "Monthly Business Report - " + (new Date().toISOString().slice(0,7)),
+    htmlBody: "<h3>Monthly Details Attached</h3><p>Please find attached the automated monthly report.</p>",
+    attachments: [pdf]
+  });
+
+  return "Sent to " + userEmail;
+}
+
+function sendInvoiceEmail(data) {
+  var recipient = data.to || Session.getEffectiveUser().getEmail();
+  var subject = data.subject || "Invoice Document";
+  var body = data.body || "Please find attached your invoice.";
+  var blob;
+
+  if (data.base64) {
+      var decoded = Utilities.base64Decode(data.base64.split(',')[1] || data.base64);
+      blob = Utilities.newBlob(decoded, 'application/pdf', data.filename || 'Invoice.pdf');
+  } else {
+      return "Error: No PDF content provided";
+  }
+
+  GmailApp.sendEmail(recipient, subject, body, {
+    htmlBody: body,
+    attachments: [blob]
+  });
+
+  return "Email sent to " + recipient;
+}
+
+function getCompanyReportData(period) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var pSheet = ss.getSheetByName(SHEET_PROJECTS);
+  var iSheet = ss.getSheetByName(SHEET_ITEMS);
+  var eSheet = ss.getSheetByName(SHEET_EXPENSES);
+
+  var now = new Date();
+  var pStart = new Date(1970, 0, 1);
+  var pEnd = new Date(2100, 0, 1);
+
+  if (!period || period === 'MONTH') {
+    pStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    pEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  } else if (period === 'LAST_MONTH') {
+    pStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    pEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+  } else if (period === 'YEAR') {
+    pStart = new Date(now.getFullYear(), 0, 1);
+    pEnd = new Date(now.getFullYear(), 11, 31, 23, 59, 59);
+  }
+
+  var financials = { sales: 0, collected: 0, expenses: 0, net: 0, unpaid: 0 };
+  var projectStats = { total: 0, paid: 0, unpaid: 0, cancelled: 0, quotation: 0 };
+  var projectDates = {};
+
+  if (pSheet) {
+    var pData = pSheet.getDataRange().getValues();
+    for (var i = 1; i < pData.length; i++) {
+        var row = pData[i];
+        var pid = String(row[1]).trim();
+        var date = new Date(row[0]);
+        var status = String(row[12]).toUpperCase();
+        var type = String(row[7]).toUpperCase();
+        var total = Number(row[9]) || 0;
+        var deposit = Number(row[10]) || 0;
+        
+        if (pid && status !== 'CANCELLED' && !type.includes('QUOTATION')) {
+            projectDates[pid] = date;
+        }
+
+        if (date >= pStart && date <= pEnd) {
+             projectStats.total++;
+             if (status === 'CANCELLED') projectStats.cancelled++;
+             else if (status === 'PAID') projectStats.paid++;
+             else projectStats.unpaid++;
+             
+             if (status !== 'CANCELLED' && !type.includes('QUOTATION')) {
+                 var discount = Number(row[14]) || 0; 
+                 var netTotal = total - discount;
+
+                 financials.sales += netTotal;
+                 if (status === 'PAID') {
+                     financials.collected += netTotal; 
+                 } else if (status === 'PARTIAL' || status === 'UNPAID') {
+                     financials.collected += deposit;
+                     financials.unpaid += (netTotal - deposit);
+                 }
+             }
+        }
+    }
+  }
+
+  var expenseBreakdown = {};
+  if (eSheet) {
+      var eData = eSheet.getDataRange().getValues();
+      for (var k = 1; k < eData.length; k++) {
+          var eRow = eData[k];
+          var eDate = new Date(eRow[0]);
+          var store = String(eRow[3]).trim() || "Other"; 
+          var amount = parseFinanceValue(eRow[7]); 
+
+          if (eDate >= pStart && eDate <= pEnd) {
+              financials.expenses += amount;
+              if (!expenseBreakdown[store]) expenseBreakdown[store] = 0;
+              expenseBreakdown[store] += amount;
+          }
+      }
+  }
+  financials.net = financials.collected - financials.expenses;
+
+  var serviceStats = {};
+  if (iSheet) {
+      var iData = iSheet.getDataRange().getValues();
+      var headers = iData[0];
+      var colTotal = -1, colType = -1, colQty = -1;
+      for (var h=0; h<headers.length; h++) {
+        var hdr = String(headers[h]).toLowerCase().trim();
+        if (hdr === 'total' || hdr === 'total (rm)' || hdr === 'amount') colTotal = h;
+        if (hdr === 'type' || hdr === 'item type') colType = h;
+        if (hdr === 'qty' || hdr === 'quantity') colQty = h;
+      }
+      if (colType === -1) colType = 2; 
+      if (colQty === -1) colQty = 5;   
+      if (colTotal === -1) colTotal = 6;
+
+      for (var j = 1; j < iData.length; j++) {
+         var itemPid = String(iData[j][0]).trim();
+         var pDate = projectDates[itemPid]; 
+         if (!pDate) continue;
+
+         if (pDate >= pStart && pDate <= pEnd) {
+             var type = String(iData[j][colType] || "Other").trim();
+             var qty = Number(iData[j][colQty]) || 0;
+             var total = parseFinanceValue(iData[j][colTotal]);
+
+             if (!serviceStats[type]) serviceStats[type] = { qty: 0, revenue: 0 };
+             serviceStats[type].qty += qty;
+             serviceStats[type].revenue += total;
+         }
+      }
+  }
+
+  var topServices = [];
+  for (var key in serviceStats) {
+      topServices.push({ type: key, qty: serviceStats[key].qty, revenue: serviceStats[key].revenue });
+  }
+  topServices.sort(function(a,b){ return b.revenue - a.revenue; }); 
+
+  var topExpenses = [];
+  for (var key in expenseBreakdown) {
+      topExpenses.push({ store: key, amount: expenseBreakdown[key] });
+  }
+  topExpenses.sort(function(a,b){ return b.amount - a.amount; });
+
+  return {
+      period: period || 'MONTH',
+      financials: financials,
+      projects: projectStats,
+      services: topServices.slice(0, 10), 
+      expenses: topExpenses.slice(0, 10) 
+  };
+}
+
+function buildReportHtml(data) {
+  var f = data.financials;
+  
+  var css = `
+    body { font-family: 'Helvetica', sans-serif; padding: 40px; color: #333; }
+    h1 { color: #312e81; border-bottom: 2px solid #312e81; padding-bottom: 10px; }
+    .summary-grid { display: block; overflow: hidden; margin-bottom: 30px; }
+    .card { float: left; width: 22%; margin-right: 2%; background: #f9fafb; padding: 15px; border: 1px solid #e5e7eb; border-radius: 5px; }
+    .card.profit { background: #eef2ff; border-color: #c7d2fe; }
+    .card h3 { font-size: 12px; text-transform: uppercase; color: #6b7280; margin: 0 0 5px 0; }
+    .card p { font-size: 18px; font-weight: bold; margin: 0; }
+    .section { clear: both; margin-top: 30px; margin-bottom: 30px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+    th { text-align: left; background: #f3f4f6; padding: 8px; border-bottom: 2px solid #e5e7eb; }
+    td { padding: 8px; border-bottom: 1px solid #eee; }
+    .right { text-align: right; }
+  `;
+
+  var html = `
+    <html>
+      <head><style>${css}</style></head>
+      <body>
+        <h1>Monthly Business Report</h1>
+        <p>Period: ${data.period}</p>
+        
+        <div class="summary-grid">
+           <div class="card">
+              <h3>Total Sales</h3>
+              <p>RM ${f.sales.toFixed(2)}</p>
+           </div>
+           <div class="card">
+              <h3>Collected</h3>
+              <p style="color: green;">RM ${f.collected.toFixed(2)}</p>
+           </div>
+           <div class="card">
+              <h3>Expenses</h3>
+              <p style="color: red;">RM ${f.expenses.toFixed(2)}</p>
+           </div>
+           <div class="card profit">
+              <h3>Net Profit</h3>
+              <p style="color: #312e81;">RM ${f.net.toFixed(2)}</p>
+           </div>
+        </div>
+
+        <div class="section">
+           <h2>Top Services</h2>
+           <table>
+             <thead><tr><th>Service</th><th class="right">Qty</th><th class="right">Revenue</th></tr></thead>
+             <tbody>
+               ${data.services.map(s => `<tr><td>${s.type}</td><td class="right">${s.qty}</td><td class="right">RM ${s.revenue.toFixed(2)}</td></tr>`).join('')}
+             </tbody>
+           </table>
+        </div>
+        
+        <div class="section">
+           <h2>Top Expenses (By Store)</h2>
+           <table>
+             <thead><tr><th>Store</th><th class="right">Amount</th></tr></thead>
+             <tbody>
+               ${data.expenses.map(e => `<tr><td>${e.store}</td><td class="right">RM ${e.amount.toFixed(2)}</td></tr>`).join('')}
+             </tbody>
+           </table>
+        </div>
+        
+        <p style="font-size: 10px; color: #999; margin-top: 50px;">Generated automatically by Fareez Invoice System.</p>
+      </body>
+    </html>
+  `;
+  
+  return html;
 }

@@ -5,11 +5,15 @@ import Dashboard from './components/Dashboard';
 import Expenses from './components/Expenses';
 import PrintableReport from './components/PrintableReport';
 import Reports from './components/Reports';
-import { saveInvoiceToSheet, fetchNextId, fetchProjectById } from './services/sheetApi';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import { saveInvoiceToSheet, fetchNextId, fetchProjectById, sendInvoiceEmail } from './services/sheetApi';
 import { FileText, LayoutDashboard, ShoppingBag, BarChart } from 'lucide-react';
 
 function App() {
   const [view, setView] = useState('DASHBOARD'); // 'DASHBOARD', 'EDITOR', 'EXPENSES', 'REPORTS', 'PRINTABLE_REPORT'
+  const [isSending, setIsSending] = useState(false);
+
 
   const [invoiceData, setInvoiceData] = useState({
     type: 'INVOICE',
@@ -141,6 +145,127 @@ function App() {
     setView('EDITOR');
   };
 
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [recipientEmail, setRecipientEmail] = useState('');
+
+  const handleSendEmail = () => {
+    if (!invoiceData.project.id) return alert("Please generate/load a project first.");
+    setRecipientEmail(invoiceData.project.email || "");
+    setShowEmailModal(true);
+  };
+
+  const confirmSendEmail = async () => {
+    if (!recipientEmail) return alert("Please enter an email address.");
+
+    setIsSending(true);
+    try {
+      // 1. Capture Node
+      const input = document.getElementById('printable-invoice');
+      if (!input) throw new Error("Preview element not found. Please switch to Editor View.");
+
+      // 2. Generate Canvas
+      const canvas = await html2canvas(input, { scale: 1.5, useCORS: true, logging: false });
+
+      // 3. Generate PDF
+      // 3. Generate PDF (Multi-page support)
+      const imgData = canvas.toDataURL('image/jpeg', 0.8);
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgProps = pdf.getImageProperties(imgData);
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      let heightLeft = pdfHeight;
+      let position = 0;
+
+      // First Page
+      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+
+      // Additional Pages
+      while (heightLeft > 0) {
+        position = heightLeft - pdfHeight; // Negative position shifts image up
+        pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const pdfBase64 = pdf.output('datauristring');
+
+      // 4. Send to Backend
+      const emailBody = `
+        <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
+          <div style="background-color: #312e81; padding: 20px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Fareez Installation Services</h1>
+          </div>
+          <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none;">
+            <p>Dear <strong>${invoiceData.project.customer || 'Valued Customer'}</strong>,</p>
+            
+            <p>Please find attached your <strong>${invoiceData.type}</strong> (${invoiceData.project.id}) for the recent services.</p>
+            
+            <div style="background-color: #f3f4f6; padding: 15px; border-radius: 5px; margin: 20px 0;">
+              <p style="margin: 0; font-size: 14px;"><strong>Document ID:</strong> ${invoiceData.project.id}</p>
+              
+              ${/* If Receipt or Paid, emphasize PAID amount */ Number(invoiceData.totals.balance) === 0 ? `
+                  <p style="margin: 5px 0 0; font-size: 14px;"><strong>Total Amount:</strong> RM ${Number(invoiceData.totals.total).toFixed(2)}</p>
+                  <p style="margin: 5px 0 0; font-size: 16px; color: #166534; font-weight: bold; border-top: 1px solid #ccc; padding-top: 5px; margin-top: 5px;">
+                      ${invoiceData.type === 'RECEIPT' ? 'TOTAL PAID' : 'FULLY PAID'}: RM ${Number(invoiceData.totals.deposit).toFixed(2)}
+                  </p>
+                  <p style="margin: 5px 0 0; font-size: 14px; color: #666;">Balance Due: RM 0.00</p>
+              ` : `
+                  ${/* Standard Invoice with Potential Discount/Deposit */ ''}
+                  ${Number(invoiceData.totals.discount) > 0 ? `
+                    <p style="margin: 5px 0 0; font-size: 14px;"><strong>Subtotal:</strong> RM ${(Number(invoiceData.totals.total) + Number(invoiceData.totals.discount)).toFixed(2)}</p>
+                    <p style="margin: 5px 0 0; font-size: 14px; color: #d32f2f;"><strong>Discount:</strong> - RM ${Number(invoiceData.totals.discount).toFixed(2)}</p>
+                  ` : ''}
+                  
+                  <p style="margin: 5px 0 0; font-size: 14px;"><strong>Total Amount:</strong> RM ${Number(invoiceData.totals.total).toFixed(2)}</p>
+                  
+                  ${Number(invoiceData.totals.deposit) > 0 ? `
+                    <p style="margin: 5px 0 0; font-size: 14px;"><strong>Paid/Deposit:</strong> RM ${Number(invoiceData.totals.deposit).toFixed(2)}</p>
+                  ` : ''}
+
+                  <p style="margin: 5px 0 0; font-size: 16px; border-top: 1px solid #ccc; padding-top: 5px; margin-top: 5px;">
+                    <strong>Balance Due:</strong> RM ${Number(invoiceData.totals.balance).toFixed(2)}
+                  </p>
+              `}
+            </div>
+            
+            <p>If you have any questions or require further assistance, please do not hesitate to contact us.</p>
+            
+            <br/>
+            <p>Best regards,</p>
+            <p><strong>Muhammad Fareez</strong><br/>
+            Fareez Installation Services<br/>
+            Phone: +6019-8961029</p>
+          </div>
+          <div style="text-align: center; padding: 15px; color: #666; font-size: 12px;">
+            Thank you for your business!
+          </div>
+        </div>
+      `;
+
+      const payload = {
+        to: recipientEmail,
+        subject: `${invoiceData.type} ${invoiceData.project.id} - Fareez Installation`,
+        body: emailBody,
+        filename: `${invoiceData.project.id}.pdf`,
+        base64: pdfBase64
+      };
+
+      await sendInvoiceEmail(payload);
+      alert("Email sent successfully!");
+      setShowEmailModal(false);
+
+    } catch (e) {
+      console.error(e);
+      alert("Failed to send email: " + e.message);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   // If Printable Report, bypass the entire App Shell layout to prevent Print CSS issues
   if (view === 'PRINTABLE_REPORT') {
     return <PrintableReport />;
@@ -216,6 +341,8 @@ function App() {
                 onSave={handleSave}
                 onLoadProject={handleLoadProject}
                 isSaving={isSaving}
+                onEmail={handleSendEmail}
+                isSending={isSending}
               />
             </div>
 
@@ -263,6 +390,47 @@ function App() {
             }
         }
       `}</style>
+      {/* Email Modal Overlay */}
+      {showEmailModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 no-print">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-96">
+            <h3 className="text-lg font-bold mb-4 text-gray-800">Send via Email</h3>
+
+            <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Email</label>
+            <input
+              type="email"
+              value={recipientEmail}
+              onChange={(e) => setRecipientEmail(e.target.value)}
+              className="w-full border p-2 rounded mb-6 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+              placeholder="customer@example.com"
+            />
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowEmailModal(false)}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded text-sm font-medium"
+                disabled={isSending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmSendEmail}
+                disabled={isSending}
+                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium flex items-center gap-2"
+              >
+                {isSending ? (
+                  <>
+                    <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                    Sending...
+                  </>
+                ) : (
+                  'Send Email'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

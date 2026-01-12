@@ -145,3 +145,28 @@ export const fetchProjectAnalytics = async (period = 'MONTH') => {
         return { error: e.message };
     }
 };
+
+export const sendTestEmail = async () => {
+    try {
+        const response = await fetch(`${API_URL}?action=sendTestEmail`);
+        return await response.json();
+    } catch (e) {
+        console.error("Failed to send test email:", e);
+        return { error: e.message };
+    }
+};
+
+export const sendInvoiceEmail = async (payload) => {
+    // Payload: { to, subject, body, filename, base64 }
+    const data = {
+        action: 'SEND_INVOICE_EMAIL',
+        payload: payload
+    };
+
+    const response = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(data),
+    });
+    return await response.json();
+};

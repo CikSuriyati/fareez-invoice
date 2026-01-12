@@ -51,12 +51,27 @@ const Reports = () => {
                     </div>
 
                     {/* Generate Report Button */}
-                    <button
-                        onClick={() => window.open(`?view=PRINTABLE_REPORT&period=${period}`, '_blank')}
-                        className="bg-indigo-900 text-white px-4 py-2 rounded-lg shadow hover:bg-indigo-800 flex items-center gap-2 text-sm font-semibold"
-                    >
-                        <FileText size={16} /> Print Report
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={async () => {
+                                if (confirm("Send automated monthly report to your email?")) {
+                                    alert("Sending...");
+                                    const { sendTestEmail } = await import('../services/sheetApi');
+                                    const res = await sendTestEmail();
+                                    alert(res.result || "Email command sent!");
+                                }
+                            }}
+                            className="bg-green-700 text-white px-4 py-2 rounded-lg shadow hover:bg-green-600 flex items-center gap-2 text-sm font-semibold"
+                        >
+                            <Calendar size={16} /> Test Email
+                        </button>
+                        <button
+                            onClick={() => window.open(`?view=PRINTABLE_REPORT&period=${period}`, '_blank')}
+                            className="bg-indigo-900 text-white px-4 py-2 rounded-lg shadow hover:bg-indigo-800 flex items-center gap-2 text-sm font-semibold"
+                        >
+                            <FileText size={16} /> Print Report
+                        </button>
+                    </div>
                 </div>
             </div>
 

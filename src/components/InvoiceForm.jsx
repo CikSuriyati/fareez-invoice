@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { Plus, Trash2, Save, Printer, Search } from 'lucide-react';
 
-const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, isSaving }) => {
+const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, isSaving, onEmail, isSending }) => {
     const { register, control, handleSubmit, watch, setValue, reset } = useForm({
         defaultValues: defaultValues || {
             type: 'INVOICE',
@@ -106,6 +106,15 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
                     <button onClick={onPrint} className="bg-gray-700 text-white px-3 py-1.5 text-xs rounded flex items-center gap-1 hover:bg-gray-800 transition shadow-sm">
                         <Printer size={14} /> Print
                     </button>
+                    {onEmail && (
+                        <button
+                            onClick={() => onEmail(watch('project.email'))}
+                            disabled={isSending}
+                            className="bg-green-700 text-white px-3 py-1.5 text-xs rounded flex items-center gap-1 hover:bg-green-800 transition disabled:opacity-50 shadow-sm"
+                        >
+                            {isSending ? 'Sending...' : 'Send Email'}
+                        </button>
+                    )}
                     <button onClick={handleSubmit((formData) => {
                         // Calculate totals to ensure they are sent to backend
                         const subtotal = (formData.items || []).reduce((acc, item) => acc + (Number(item.unitPrice || 0) * Number(item.qty || 0)), 0);
