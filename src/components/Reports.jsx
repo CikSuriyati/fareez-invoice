@@ -57,7 +57,11 @@ const Reports = () => {
             async () => {
                 const { sendTestEmail } = await import('../services/sheetApi');
                 const res = await sendTestEmail();
-                alert(res.result || "Report sent successfully!");
+                if (res.error) {
+                    alert("Error: " + res.error);
+                } else {
+                    alert(res.result || "Report sent successfully!");
+                }
             }
         );
     };
@@ -69,7 +73,11 @@ const Reports = () => {
             async () => {
                 const { setupAutomatedReporting } = await import('../services/sheetApi');
                 const res = await setupAutomatedReporting();
-                alert(res.result || "Automation enabled!");
+                if (res.error) {
+                    alert("Error: " + res.error);
+                } else {
+                    alert(res.result || "Automation enabled!");
+                }
             }
         );
     };
