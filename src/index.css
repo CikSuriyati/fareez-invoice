@@ -5,3 +5,61 @@
 body {
     background-color: #f3f4f6;
 }
+
+/* Mobile Optimization */
+@layer utilities {
+    /* Touch-friendly tap targets - minimum 44x44px */
+    .tap-target {
+        min-height: 44px;
+        min-width: 44px;
+    }
+    
+    /* Smooth scrolling for better UX */
+    html {
+        scroll-behavior: smooth;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Prevent text selection on buttons (better mobile UX) */
+    button {
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+    }
+    
+    /* Improve form input sizing on mobile */
+    input,
+    textarea,
+    select {
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+}
+
+/* Mobile-specific responsive adjustments */
+@media (max-width: 640px) {
+    /* Stack navigation buttons vertically on very small screens */
+    .nav-mobile {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    /* Full-width buttons on mobile */
+    .btn-mobile {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    /* Reduce padding on mobile for more content space */
+    .container-mobile {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+}
+
+/* Landscape mobile optimization */
+@media (max-height: 500px) and (orientation: landscape) {
+    /* Reduce vertical spacing in landscape mode */
+    .space-y-mobile {
+        margin-top: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+}

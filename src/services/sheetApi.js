@@ -185,3 +185,34 @@ export const setupAutomatedReporting = async () => {
         return { error: e.message };
     }
 };
+
+export const fetchCustomers = async () => {
+    try {
+        const response = await fetch(`${API_URL}?action=getCustomers`);
+        const data = await response.json();
+        return data.customers || [];
+    } catch (e) {
+        console.error("Failed to fetch customers:", e);
+        return [];
+    }
+};
+
+export const updateProjectStatus = async (projectId, status) => {
+    const data = {
+        action: 'UPDATE_STATUS',
+        projectId: projectId,
+        status: status
+    };
+
+    try {
+        const response = await fetch(API_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify(data),
+        });
+        return await response.json();
+    } catch (e) {
+        console.error("Failed to update status:", e);
+        return { error: e.message };
+    }
+};

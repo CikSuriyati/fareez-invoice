@@ -107,39 +107,66 @@ const InvoicePreview = ({ data }) => {
         </table>
 
         <div className="total-section">
-          <div>
-            <span className="total-label">TOTAL AMOUNT:</span>
-            <span className="total-amount">RM {formatCurrency(totals.total)}</span>
-          </div>
-
-          {(type === 'INVOICE' || type === 'RECEIPT') && (
+          {type === 'QUOTATION' ? (
             <>
-              {Number(totals.discount) > 0 && (
-                <div style={{ marginTop: '5px', color: '#d32f2f' }}>
-                  <span className="total-label">LESS DISCOUNT:</span>
-                  <span><strong>- RM {formatCurrency(totals.discount)}</strong></span>
+              {Number(totals.discount) > 0 ? (
+                <>
+                  <div>
+                    <span className="total-label">SUB-TOTAL:</span>
+                    <span className="total-amount">RM {formatCurrency(totals.total)}</span>
+                  </div>
+                  <div style={{ marginTop: '5px', color: '#d32f2f' }}>
+                    <span className="total-label">LESS DISCOUNT:</span>
+                    <span><strong>- RM {formatCurrency(totals.discount)}</strong></span>
+                  </div>
+                  <div style={{ marginTop: '8px' }}>
+                    <span className="total-label">TOTAL AMOUNT:</span>
+                    <span className="total-amount">RM {formatCurrency(totals.total - totals.discount)}</span>
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <span className="total-label">TOTAL AMOUNT:</span>
+                  <span className="total-amount">RM {formatCurrency(totals.total)}</span>
                 </div>
               )}
-              <div style={{ marginTop: '5px' }}>
-                <span className="total-label">{type === 'RECEIPT' ? 'TOTAL PAID:' : 'DEPOSIT PAID:'}</span>
-                <span><strong>RM {formatCurrency(totals.deposit)}</strong></span>
+              <div style={{ color: '#666', marginTop: '10px' }}>
+                <span className="total-label">Deposit Required (50%):</span>
+                <span><strong>RM {formatCurrency((totals.total - (totals.discount || 0)) * 0.5)}</strong></span>
               </div>
-              {type !== 'RECEIPT' && (
-                <div style={{ marginTop: '8px' }}>
-                  <span className="total-label">BALANCE DUE:</span>
-                  <span className="total-amount">RM {formatCurrency(totals.balance)}</span>
-                </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <span className="total-label">TOTAL AMOUNT:</span>
+                <span className="total-amount">RM {formatCurrency(totals.total)}</span>
+              </div>
+
+              {(type === 'INVOICE' || type === 'RECEIPT') && (
+                <>
+                  {Number(totals.discount) > 0 && (
+                    <div style={{ marginTop: '5px', color: '#d32f2f' }}>
+                      <span className="total-label">LESS DISCOUNT:</span>
+                      <span><strong>- RM {formatCurrency(totals.discount)}</strong></span>
+                    </div>
+                  )}
+                  <div style={{ marginTop: '5px' }}>
+                    <span className="total-label">{type === 'RECEIPT' ? 'TOTAL PAID:' : 'DEPOSIT PAID:'}</span>
+                    <span><strong>RM {formatCurrency(totals.deposit)}</strong></span>
+                  </div>
+                  {type !== 'RECEIPT' && (
+                    <div style={{ marginTop: '8px' }}>
+                      <span className="total-label">BALANCE DUE:</span>
+                      <span className="total-amount">RM {formatCurrency(totals.balance)}</span>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
-
-          {type === 'QUOTATION' && (
-            <div style={{ color: '#666', marginTop: '5px' }}>
-              <span className="total-label">Deposit Required (50%):</span>
-              <span><strong>RM {formatCurrency(totals.total * 0.5)}</strong></span>
-            </div>
-          )}
         </div>
+
+
 
         {/* Payment & Legal Section */}
         <div style={{ marginTop: '30px', borderTop: '2px solid #ddd', paddingTop: '15px' }}>

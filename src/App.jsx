@@ -1,17 +1,22 @@
 import React, { useState, useEffect } from 'react';
+import Login from './components/Login';
 import InvoiceForm from './components/InvoiceForm';
 import InvoicePreview from './components/InvoicePreview';
 import Dashboard from './components/Dashboard';
 import Expenses from './components/Expenses';
 import PrintableReport from './components/PrintableReport';
 import Reports from './components/Reports';
+import QuickUpdate from './components/QuickUpdate';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { saveInvoiceToSheet, fetchNextId, fetchProjectById, sendInvoiceEmail } from './services/sheetApi';
-import { FileText, LayoutDashboard, ShoppingBag, BarChart } from 'lucide-react';
+import { FileText, LayoutDashboard, ShoppingBag, BarChart, Zap } from 'lucide-react';
 
 function App() {
-  const [view, setView] = useState('DASHBOARD'); // 'DASHBOARD', 'EDITOR', 'EXPENSES', 'REPORTS', 'PRINTABLE_REPORT'
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userEmail, setUserEmail] = useState(null);
+  const [view, setView] = useState('DASHBOARD'); // 'DASHBOARD', 'EDITOR', 'EXPENSES', 'REPORTS', 'QUICK_UPDATE', 'PRINTABLE_REPORT'
+
   const [isSending, setIsSending] = useState(false);
 
 
@@ -30,6 +35,28 @@ function App() {
   const [initialData, setInitialData] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [baseId, setBaseId] = useState('');
+
+  // Check for existing session
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('user_email');
+    if (savedEmail) {
+      setUserEmail(savedEmail);
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  const handleLogin = ({ email }) => {
+    setUserEmail(email);
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('user_email');
+    localStorage.removeItem('google_credential');
+    setUserEmail(null);
+    setIsAuthenticated(false);
+    setView('DASHBOARD');
+  };
 
   // Load URL Params & Next ID on Mount
   useEffect(() => {
@@ -307,6 +334,20 @@ function App() {
               >
                 <BarChart size={18} /> <span className="hidden sm:inline">Reports</span>
               </button>
+              <button
+                onClick={() => setView('QUICK_UPDATE')}
+                className={`flex items-center gap-2 px-3 py-1 rounded hover:bg-indigo-800 transition ${view === 'QUICK_UPDATE' ? 'bg-indigo-800 ring-1 ring-indigo-400' : ''}`}
+              >
+                <Zap size={18} /> <span className="hidden sm:inline">Quick Update</span>
+              </button>
+
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 py-1 rounded hover:bg-red-600 bg-red-700 transition ml-2"
+                title="Logout"
+              >
+                <span className="text-sm">🚪 Logout</span>
+              </button>
             </div>
           </div>
         </nav>
@@ -329,6 +370,11 @@ function App() {
         {view === 'REPORTS' && (
           <Reports />
         )}
+
+        {view === 'QUICK_UPDATE' && (
+          <QuickUpdate />
+        )}
+
 
         {view === 'EDITOR' && (
           <div className="flex flex-col lg:flex-row gap-8">
@@ -431,6 +477,9 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* Login overlay if not authenticated */}
+      {!isAuthenticated && <Login onLoginSuccess={handleLogin} />}
     </div>
   );
 }

@@ -1,6 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { Plus, Trash2, Save, Printer, Search } from 'lucide-react';
+import { fetchCustomers } from '../services/sheetApi';
+
 
 const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, isSaving, onEmail, isSending }) => {
     const { register, control, handleSubmit, watch, setValue, reset } = useForm({
@@ -26,6 +28,68 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
             reset(defaultValues);
         }
     }, [defaultValues, reset]);
+
+    // Customer Autocomplete State
+    const [customers, setCustomers] = useState([]);
+    const [filteredCustomers, setFilteredCustomers] = useState([]);
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
+    const customerInputRef = useRef(null);
+    const suggestionsRef = useRef(null);
+
+    // Load customers on mount
+    useEffect(() => {
+        const loadCustomers = async () => {
+            setIsLoadingCustomers(true);
+            const customerList = await fetchCustomers();
+            setCustomers(customerList);
+            setIsLoadingCustomers(false);
+        };
+        loadCustomers();
+    }, []);
+
+    // Handle customer search
+    const handleCustomerSearch = (searchText) => {
+        setValue('project.customer', searchText);
+
+        if (!searchText || searchText.length < 2) {
+            setFilteredCustomers([]);
+            setShowSuggestions(false);
+            return;
+        }
+
+        const searchLower = searchText.toLowerCase();
+        const matches = customers.filter(customer =>
+            customer.name.toLowerCase().includes(searchLower)
+        );
+
+        setFilteredCustomers(matches);
+        setShowSuggestions(matches.length > 0);
+    };
+
+    // Select customer from suggestions
+    const selectCustomer = (customer) => {
+        setValue('project.customer', customer.name);
+        setValue('project.email', customer.email);
+        setValue('project.phone', customer.phone);
+        setValue('project.address', customer.address);
+        setShowSuggestions(false);
+        setFilteredCustomers([]);
+    };
+
+    // Close suggestions when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (suggestionsRef.current && !suggestionsRef.current.contains(event.target) &&
+                customerInputRef.current && !customerInputRef.current.contains(event.target)) {
+                setShowSuggestions(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
 
     // Auto-Payment Logic
     const currentStatus = watch("status");
@@ -175,10 +239,56 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
                         <label className="block text-xs text-gray-500">Date</label>
                         <input type="date" {...register("project.date")} className="w-full border rounded p-1.5" />
                     </div>
-                    <div className="md:col-span-2">
-                        <label className="block text-xs text-gray-500">Customer Name</label>
-                        <input {...register("project.customer")} className="w-full border rounded p-1.5" placeholder="e.g. John Doe" />
+                    <div className="md:col-span-2 relative">
+                        <label className="block text-xs text-gray-500 mb-1">
+                            Customer Name
+                            {isLoadingCustomers && <span className="ml-2 text-indigo-600 text-xs">(Loading customers...)</span>}
+                        </label>
+                        <input
+                            ref={customerInputRef}
+                            value={watch('project.customer') || ''}
+                            onChange={(e) => handleCustomerSearch(e.target.value)}
+                            onFocus={() => {
+                                // Show suggestions if there are matches when focusing
+                                if (filteredCustomers.length > 0) {
+                                    setShowSuggestions(true);
+                                }
+                            }}
+                            className="w-full border rounded p-1.5"
+                            placeholder="Start typing customer name..."
+                            autoComplete="off"
+                        />
+
+                        {/* Autocomplete Suggestions Dropdown */}
+                        {showSuggestions && filteredCustomers.length > 0 && (
+                            <div
+                                ref={suggestionsRef}
+                                className="absolute z-50 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-60 overflow-y-auto"
+                            >
+                                {filteredCustomers.map((customer, index) => (
+                                    <div
+                                        key={index}
+                                        onClick={() => selectCustomer(customer)}
+                                        className="px-3 py-2 hover:bg-indigo-50 cursor-pointer border-b last:border-b-0"
+                                    >
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1">
+                                                <div className="font-medium text-gray-900">{customer.name}</div>
+                                                <div className="text-xs text-gray-600 mt-0.5">
+                                                    {customer.email && <span>{customer.email}</span>}
+                                                    {customer.phone && <span className="ml-2">• {customer.phone}</span>}
+                                                </div>
+                                            </div>
+                                            <div className="ml-2 text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                                {customer.projectCount} {customer.projectCount === 1 ? 'project' : 'projects'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
+
                     <div className="md:col-span-2">
                         <label className="block text-xs text-gray-500">Address</label>
                         <textarea {...register("project.address")} rows={2} className="w-full border rounded p-1.5" placeholder="Full Address" />

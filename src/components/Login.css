@@ -1,0 +1,123 @@
+.login-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    z-index: 9999;
+}
+
+.login-card {
+    background: white;
+    padding: 3rem;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 420px;
+    width: 90%;
+    text-align: center;
+}
+
+.logo-section {
+    margin-bottom: 2rem;
+}
+
+.text-logo {
+    font-family: 'Times New Roman', serif;
+    font-size: 64px;
+    font-weight: bold;
+    color: #1A237E;
+    margin-bottom: 0.5rem;
+}
+
+.login-card h1 {
+    font-size: 24px;
+    color: #1A237E;
+    margin: 0;
+    font-weight: 600;
+}
+
+.login-subtitle {
+    color: #666;
+    font-size: 14px;
+    margin: 1.5rem 0;
+    line-height: 1.5;
+}
+
+.error-message {
+    background: #fee;
+    border: 1px solid #fcc;
+    color: #c33;
+    padding: 0.75rem;
+    border-radius: 8px;
+    margin-top: 1rem;
+    font-size: 13px;
+}
+
+.login-footer {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #eee;
+}
+
+.login-footer p {
+    margin: 0.5rem 0;
+    font-size: 13px;
+    color: #666;
+}
+
+.footer-note {
+    font-size: 11px !important;
+    color: #999 !important;
+}
+
+.login-instructions {
+    text-align: left;
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 8px;
+    margin: 1.5rem 0;
+}
+
+.login-instructions p {
+    margin: 0 0 0.5rem 0;
+    color: #333;
+    font-size: 13px;
+}
+
+.login-instructions ol {
+    margin: 0.5rem 0 0 0;
+    padding-left: 1.5rem;
+    color: #666;
+    font-size: 13px;
+}
+
+.login-instructions li {
+    margin: 0.4rem 0;
+    line-height: 1.4;
+}
+
+.continue-button {
+    width: 100%;
+    padding: 0.875rem;
+    background: #1A237E;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.continue-button:hover:not(:disabled) {
+    background: #0d1642;
+}
+
+.continue-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
