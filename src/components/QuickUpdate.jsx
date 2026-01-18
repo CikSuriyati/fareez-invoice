@@ -133,18 +133,6 @@ const QuickUpdate = () => {
     const handleStatusUpdate = async () => {
         if (!project || !selectedStatus) return;
 
-        // Validate mandatory paid amount and receipt for PARTIAL/PAID
-        if (selectedStatus === 'PARTIAL' || selectedStatus === 'PAID') {
-            if (!paidAmount || parseFloat(paidAmount) <= 0) {
-                setError('Paid amount is required for PARTIAL and PAID status');
-                return;
-            }
-            if (!selectedFile) {
-                setError('Payment receipt is required for PARTIAL and PAID status');
-                return;
-            }
-        }
-
         setIsUpdating(true);
         setError('');
         setSuccessMessage('');

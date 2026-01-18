@@ -591,22 +591,6 @@ function doPost(e) {
         return jsonResponse({ result: "error", error: "Missing projectId or status" });
       }
       
-      // Validate mandatory paid amount and receipt for PARTIAL and PAID
-      if (newStatus === 'PARTIAL' || newStatus === 'PAID') {
-        if (!paidAmount || paidAmount <= 0) {
-          return jsonResponse({ 
-            result: "error", 
-            error: "Paid amount is required for PARTIAL and PAID status" 
-          });
-        }
-        if (!receiptData) {
-          return jsonResponse({ 
-            result: "error", 
-            error: "Payment receipt is required for PARTIAL and PAID status" 
-          });
-        }
-      }
-      
       var projectSheet = ss.getSheetByName(SHEET_PROJECTS);
       var itemSheet = getSheetById(ss, 663549614);
       if (!itemSheet) itemSheet = ss.getSheetByName(SHEET_ITEMS);
@@ -631,10 +615,10 @@ function doPost(e) {
         return jsonResponse({ result: "error", error: "Project not found: " + projectId });
       }
       
-      // Handle payment recording for PARTIAL/PAID
+      // Handle payment recording ONLY if receipt is provided
       var receiptUrl = null;
       var paymentRefId = null;
-      if (newStatus === 'PARTIAL' || newStatus === 'PAID') {
+      if (receiptData && paidAmount && paidAmount > 0) {
         // Upload receipt
         var uploadResult = uploadPaymentReceipt(projectId, receiptData, receiptFileName, receiptMimeType);
         if (uploadResult.error) {
