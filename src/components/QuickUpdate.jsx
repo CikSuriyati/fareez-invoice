@@ -1,96 +1,133 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, Check, Clock, DollarSign, Loader, ChevronDown, X, Camera, Upload, FileText } from 'lucide-react';
-import { fetchProjectById, updateProjectStatus } from '../services/sheetApi';
+import React, { useState, useEffect } from 'react';
+import { Search, Check, Clock, DollarSign, Loader, ChevronDown, Upload, X, FileText, Image } from 'lucide-react';
+import { fetchProjectById, updateProjectStatus, fetchProjects } from '../services/sheetApi';
 
 const QuickUpdate = () => {
-    const [allProjects, setAllProjects] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [project, setProject] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isSearching, setIsSearching] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
     const [selectedStatus, setSelectedStatus] = useState('');
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
-    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const [selectedProjectDisplay, setSelectedProjectDisplay] = useState('');
-    const dropdownRef = useRef(null);
-    const inputRef = useRef(null);
 
-    // Payment receipt upload
-    const [paymentReceipt, setPaymentReceipt] = useState(null);
-    const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
-    const [isScanningPayment, setIsScanningPayment] = useState(false);
-    const [extractedAmount, setExtractedAmount] = useState(null);
-    const [paymentAmount, setPaymentAmount] = useState('');
-    const receiptFileInputRef = useRef(null);
+    // Dropdown States
+    const [projectsList, setProjectsList] = useState([]);
+    const [filteredProjects, setFilteredProjects] = useState([]);
+    const [showDropdown, setShowDropdown] = useState(false);
+    const [isLoadingList, setIsLoadingList] = useState(true);
 
-    // Load all projects on mount
+    // File Upload States
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [filePreview, setFilePreview] = useState(null);
+
+    // Payment Details States
+    const [paidAmount, setPaidAmount] = useState('');
+
+    // Load projects on mount
     useEffect(() => {
-        const loadProjects = async () => {
-            try {
-                // Fetch using a dummy action to get list
-                const response = await fetch(
-                    import.meta.env.VITE_API_URL?.replace('?action=', '?action=getProjects') ||
-                    'https://script.google.com/macros/s/REDACTED_SECRET_2/exec?action=getProjects'
-                );
-                const data = await response.json();
-                if (data && Array.isArray(data)) {
-                    setAllProjects(data);
-                }
-            } catch (e) {
-                console.error('Failed to load projects:', e);
-            } finally {
-                setIsLoading(false);
-            }
-        };
         loadProjects();
     }, []);
 
-    // Click outside to close dropdown
+    // Filter projects when search query changes
     useEffect(() => {
-        const handleClickOutside = (event) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-                setIsDropdownOpen(false);
-            }
-        };
+        if (!searchQuery.trim()) {
+            setFilteredProjects(projectsList);
+        } else {
+            const lowerQuery = searchQuery.toLowerCase();
+            const filtered = projectsList.filter(p =>
+                p.id.toLowerCase().includes(lowerQuery) ||
+                p.customer.toLowerCase().includes(lowerQuery)
+            );
+            setFilteredProjects(filtered);
+        }
+    }, [searchQuery, projectsList]);
 
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+    const loadProjects = async () => {
+        try {
+            const list = await fetchProjects();
+            // Ensure unique projects just in case
+            const unique = list.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+            setProjectsList(unique);
+            setFilteredProjects(unique);
+        } catch (e) {
+            console.error("Failed to load projects list", e);
+        } finally {
+            setIsLoadingList(false);
+        }
+    };
 
-    // Filter projects based on search query
-    const filteredProjects = allProjects.filter((proj) => {
-        if (!searchQuery) return true;
-        const query = searchQuery.toLowerCase();
-        return (
-            proj.id.toLowerCase().includes(query) ||
-            proj.customer.toLowerCase().includes(query)
-        );
-    });
+    const handleSelectProject = async (projectId) => {
+        setSearchQuery(projectId);
+        setShowDropdown(false);
+        await handleSearch(projectId);
+    };
 
-    const handleProjectSelect = async (projectId, projectDisplay) => {
-        if (!projectId) return;
+    const handleSearch = async (overrideId) => {
+        const idToSearch = overrideId || searchQuery;
 
+        if (!idToSearch.trim()) {
+            setError('Please select or enter a Project ID');
+            return;
+        }
+
+        setIsSearching(true);
         setError('');
         setProject(null);
         setSuccessMessage('');
-        setSelectedProjectDisplay(projectDisplay);
-        setSearchQuery('');
-        setIsDropdownOpen(false);
 
         try {
-            const data = await fetchProjectById(projectId);
+            const data = await fetchProjectById(idToSearch.trim());
 
             if (data.error) {
-                setError(`Project not found: ${projectId}`);
+                setError(`Project not found: ${idToSearch}`);
             } else {
                 setProject(data);
                 setSelectedStatus(data.status || 'UNPAID');
             }
         } catch (e) {
-            setError('Failed to load project. Please try again.');
+            setError('Failed to search. Please try again.');
             console.error(e);
+        } finally {
+            setIsSearching(false);
         }
+    };
+
+    const handleFileSelect = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Validate file type
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+        if (!allowedTypes.includes(file.type)) {
+            setError('Invalid file type. Only JPG, PNG, and PDF are allowed.');
+            return;
+        }
+
+        // Validate file size (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            setError('File too large. Maximum size is 10MB.');
+            return;
+        }
+
+        setSelectedFile(file);
+        setError('');
+
+        // Create preview for images
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setFilePreview(reader.result);
+            };
+            reader.readAsDataURL(file);
+        } else {
+            setFilePreview(null);
+        }
+    };
+
+    const handleRemoveFile = () => {
+        setSelectedFile(null);
+        setFilePreview(null);
     };
 
     const handleStatusUpdate = async () => {
@@ -101,7 +138,35 @@ const QuickUpdate = () => {
         setSuccessMessage('');
 
         try {
-            await updateProjectStatus(project.project.id, selectedStatus);
+            let receiptData = null;
+
+            // Convert file to base64 if present
+            if (selectedFile) {
+                const reader = new FileReader();
+                receiptData = await new Promise((resolve, reject) => {
+                    reader.onloadend = () => {
+                        // Remove data URL prefix to get pure base64
+                        const base64 = reader.result.split(',')[1];
+                        resolve({
+                            data: base64,
+                            fileName: selectedFile.name,
+                            mimeType: selectedFile.type
+                        });
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(selectedFile);
+                });
+            }
+
+            // Include payment amount if present
+            const amount = paidAmount ? parseFloat(paidAmount) : null;
+
+            await updateProjectStatus(
+                project.project.id,
+                selectedStatus,
+                receiptData,
+                amount
+            );
             setSuccessMessage(`✓ Status updated to ${selectedStatus}`);
 
             // Update local state
@@ -110,108 +175,22 @@ const QuickUpdate = () => {
                 status: selectedStatus
             });
 
-            // Clear success message after 3 seconds
+            // Also update the list item's status if it exists
+            setProjectsList(prev => prev.map(p =>
+                p.id === project.project.id ? { ...p, status: selectedStatus } : p
+            ));
+
+            // Clear file selection and amount
+            setSelectedFile(null);
+            setFilePreview(null);
+            setPaidAmount('');
+
             setTimeout(() => setSuccessMessage(''), 3000);
         } catch (e) {
             setError('Failed to update status. Please try again.');
             console.error(e);
         } finally {
             setIsUpdating(false);
-        }
-    };
-
-    const clearSelection = () => {
-        setSelectedProjectDisplay('');
-        setSearchQuery('');
-        setProject(null);
-        setError('');
-        setSuccessMessage('');
-        setPaymentReceipt(null);
-        setExtractedAmount(null);
-        setPaymentAmount('');
-        inputRef.current?.focus();
-    };
-
-    const handleReceiptCapture = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        if (!file.type.startsWith('image/')) {
-            setError('Please select an image file');
-            return;
-        }
-
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            setPaymentReceipt(reader.result);
-            // Auto-scan receipt for amount
-            handleScanPaymentReceipt(reader.result);
-        };
-        reader.readAsDataURL(file);
-    };
-
-    const handleScanPaymentReceipt = async (imageData) => {
-        setIsScanningPayment(true);
-        setExtractedAmount(null);
-
-        try {
-            const response = await fetch(
-                import.meta.env.VITE_API_URL?.replace('?action=', '?action=scanReceipt') ||
-                'https://script.google.com/macros/s/REDACTED_SECRET_2/exec?action=scanReceipt',
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image: imageData })
-                }
-            );
-
-            const result = await response.json();
-
-            if (result.success && result.extracted && result.extracted.amount) {
-                setExtractedAmount(result.extracted.amount);
-                setPaymentAmount(result.extracted.amount.toString());
-            }
-        } catch (error) {
-            console.error('Scan error:', error);
-        } finally {
-            setIsScanningPayment(false);
-        }
-    };
-
-    const handleUploadPaymentReceipt = async () => {
-        if (!paymentReceipt || !project) return;
-
-        setIsUploadingReceipt(true);
-
-        try {
-            const response = await fetch(
-                import.meta.env.VITE_API_URL?.replace('?action=', '?action=uploadPaymentReceipt') ||
-                'https://script.google.com/macros/s/REDACTED_SECRET_2/exec?action=uploadPaymentReceipt',
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        image: paymentReceipt,
-                        projectId: project.project.id,
-                        amount: paymentAmount,
-                        status: selectedStatus
-                    })
-                }
-            );
-
-            const result = await response.json();
-
-            if (result.error) {
-                setError(result.error);
-            } else {
-                const docType = result.documentType || (selectedStatus === 'PAID' ? 'RECEIPT' : 'INVOICE');
-                setSuccessMessage(`✓ ${docType} generated! Payment receipt uploaded successfully.`);
-            }
-        } catch (error) {
-            console.error('Upload error:', error);
-            setError('Failed to upload receipt. Please try again.');
-        } finally {
-            setIsUploadingReceipt(false);
         }
     };
 
@@ -232,86 +211,77 @@ const QuickUpdate = () => {
                 <p className="text-sm text-gray-600">Update job status from the field</p>
             </div>
 
-            {/* Searchable Project Selection Dropdown */}
-            <div className="bg-white rounded-lg shadow-md p-4 mb-4" ref={dropdownRef}>
+            {/* Search Section */}
+            <div className="bg-white rounded-lg shadow-md p-4 mb-4 relative z-20">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Project
+                    Search Project
                 </label>
-                {isLoading ? (
-                    <div className="flex items-center justify-center py-4 text-gray-500">
-                        <Loader className="animate-spin mr-2" size={20} />
-                        Loading projects...
-                    </div>
-                ) : (
-                    <div className="relative">
-                        {/* Input Field */}
-                        <div className="relative">
+                <div className="relative">
+                    <div className="flex gap-2">
+                        <div className="relative flex-1">
                             <input
-                                ref={inputRef}
                                 type="text"
-                                value={selectedProjectDisplay || searchQuery}
+                                value={searchQuery}
                                 onChange={(e) => {
                                     setSearchQuery(e.target.value);
-                                    setSelectedProjectDisplay('');
-                                    setIsDropdownOpen(true);
+                                    setShowDropdown(true);
                                 }}
-                                onFocus={() => setIsDropdownOpen(true)}
-                                placeholder="Type project ID or customer name..."
-                                className="w-full border border-gray-300 rounded-lg pl-10 pr-20 py-3 text-base focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                onFocus={() => setShowDropdown(true)}
+                                placeholder={isLoadingList ? "Loading projects..." : "Select or type Project ID..."}
+                                className="w-full border border-gray-300 rounded-lg pl-4 pr-10 py-3 text-base focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                             />
-                            <Search className="absolute left-3 top-3.5 text-gray-400" size={20} />
-
-                            {/* Clear and Dropdown Toggle Buttons */}
-                            <div className="absolute right-2 top-2 flex gap-1">
-                                {(selectedProjectDisplay || searchQuery) && (
-                                    <button
-                                        onClick={clearSelection}
-                                        className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-                                        type="button"
-                                    >
-                                        <X size={18} className="text-gray-400" />
-                                    </button>
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                                {isLoadingList ? (
+                                    <Loader className="animate-spin" size={18} />
+                                ) : (
+                                    <ChevronDown size={18} />
                                 )}
-                                <button
-                                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                                    className="p-1.5 hover:bg-gray-100 rounded transition-colors"
-                                    type="button"
-                                >
-                                    <ChevronDown
-                                        size={18}
-                                        className={`text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
-                                    />
-                                </button>
                             </div>
                         </div>
-
-                        {/* Dropdown List */}
-                        {isDropdownOpen && (
-                            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-                                {filteredProjects.length > 0 ? (
-                                    <ul>
-                                        {filteredProjects.map((proj) => (
-                                            <li key={proj.id}>
-                                                <button
-                                                    onClick={() => handleProjectSelect(proj.id, `${proj.id} - ${proj.customer}`)}
-                                                    className="w-full text-left px-4 py-3 hover:bg-indigo-50 focus:bg-indigo-50 focus:outline-none border-b border-gray-100 last:border-b-0 transition-colors"
-                                                    type="button"
-                                                >
-                                                    <div className="font-medium text-gray-900">{proj.id}</div>
-                                                    <div className="text-sm text-gray-600">{proj.customer}</div>
-                                                </button>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <div className="px-4 py-3 text-center text-gray-500 text-sm">
-                                        No projects found
-                                    </div>
-                                )}
-                            </div>
-                        )}
                     </div>
-                )}
+
+                    {/* Dropdown Menu */}
+                    {showDropdown && (searchQuery || projectsList.length > 0) && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto z-50">
+                            {filteredProjects.length > 0 ? (
+                                filteredProjects.map((p) => (
+                                    <button
+                                        key={p.id}
+                                        className="w-full text-left px-4 py-3 hover:bg-indigo-50 border-b border-gray-100 last:border-0 flex justify-between items-center group"
+                                        onClick={() => handleSelectProject(p.id)}
+                                    >
+                                        <div>
+                                            <div className="font-medium text-gray-900 group-hover:text-indigo-700">
+                                                {p.id}
+                                            </div>
+                                            <div className="text-xs text-gray-500">
+                                                {p.customer}
+                                            </div>
+                                        </div>
+                                        <div className={`text-xs px-2 py-1 rounded ${p.status === 'PAID' ? 'bg-green-100 text-green-800' :
+                                            p.status === 'PARTIAL' ? 'bg-yellow-100 text-yellow-800' :
+                                                'bg-red-100 text-red-800'
+                                            }`}>
+                                            {p.status}
+                                        </div>
+                                    </button>
+                                ))
+                            ) : (
+                                <div className="p-4 text-center text-gray-500 text-sm">
+                                    No projects found
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Overlay to close dropdown when clicking outside */}
+                    {showDropdown && (
+                        <div
+                            className="fixed inset-0 z-[-1]"
+                            onClick={() => setShowDropdown(false)}
+                        />
+                    )}
+                </div>
             </div>
 
             {/* Error Message */}
@@ -331,7 +301,7 @@ const QuickUpdate = () => {
 
             {/* Project Details & Status Update */}
             {project && (
-                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                <div className="bg-white rounded-lg shadow-md overflow-hidden relative z-10">
                     {/* Project Header */}
                     <div className="bg-indigo-600 text-white p-4">
                         <div className="text-sm opacity-90 mb-1">Project ID</div>
@@ -387,108 +357,91 @@ const QuickUpdate = () => {
                             ))}
                         </div>
 
-                        {/* Payment Receipt Upload (shown when PAID or PARTIAL is selected) */}
-                        {(selectedStatus === 'PAID' || selectedStatus === 'PARTIAL') && (
+                        {/* Paid Amount Input - Shows for PARTIAL/PAID */}
+                        {(selectedStatus === 'PARTIAL' || selectedStatus === 'PAID') && (
                             <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                <div className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
-                                    <Camera size={18} className="text-blue-600" />
-                                    Payment Receipt (Optional)
+                                <label className="block text-sm font-medium text-blue-900 mb-2">
+                                    Paid Amount (RM) <span className="text-red-600">*</span>
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                                        RM
+                                    </span>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={paidAmount}
+                                        onChange={(e) => setPaidAmount(e.target.value)}
+                                        placeholder="0.00"
+                                        className="w-full pl-12 pr-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                </div>
+                                <p className="text-xs text-blue-600 mt-1">
+                                    Enter the amount received from customer
+                                </p>
+                            </div>
+                        )}
+
+                        {/* File Upload Section - Shows for PARTIAL/PAID */}
+                        {(selectedStatus === 'PARTIAL' || selectedStatus === 'PAID') && (
+                            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Upload size={18} className="text-amber-700" />
+                                    <span className="text-sm font-medium text-amber-900">
+                                        Payment Receipt Required
+                                    </span>
                                 </div>
 
-                                {paymentReceipt ? (
-                                    <div className="space-y-3">
-                                        <img
-                                            src={paymentReceipt}
-                                            alt="Payment Receipt Preview"
-                                            className="w-full rounded-lg border-2 border-blue-300"
+                                {!selectedFile ? (
+                                    <label className="block cursor-pointer">
+                                        <input
+                                            type="file"
+                                            accept="image/jpeg,image/jpg,image/png,application/pdf"
+                                            onChange={handleFileSelect}
+                                            className="hidden"
                                         />
-
-                                        {/* Scanning Indicator */}
-                                        {isScanningPayment && (
-                                            <div className="flex items-center gap-2 text-blue-600 text-sm">
-                                                <Loader className="animate-spin" size={16} />
-                                                Detecting payment amount...
-                                            </div>
-                                        )}
-
-                                        {/* Extracted Amount */}
-                                        {extractedAmount !== null && (
-                                            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                                                <div className="text-xs text-green-700 font-medium mb-1">
-                                                    ✓ Detected from receipt:
-                                                </div>
-                                                <div className="text-2xl font-bold text-green-800">
-                                                    RM {Number(extractedAmount).toFixed(2)}
-                                                </div>
-                                                <div className="text-xs text-gray-600 mt-2">
-                                                    Project Total: RM {(project?.depositPaid || 0).toFixed(2)}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Manual Amount Input */}
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                Verify Payment Amount (RM)
-                                            </label>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                value={paymentAmount}
-                                                onChange={(e) => setPaymentAmount(e.target.value)}
-                                                placeholder="Enter amount"
-                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                                            />
+                                        <div className="border-2 border-dashed border-amber-300 rounded-lg p-6 text-center hover:border-amber-400 hover:bg-amber-100 transition-colors">
+                                            <Upload size={32} className="mx-auto mb-2 text-amber-600" />
+                                            <p className="text-sm text-amber-800 font-medium mb-1">
+                                                Click to upload receipt
+                                            </p>
+                                            <p className="text-xs text-amber-600">
+                                                JPG, PNG, or PDF (max 10MB)
+                                            </p>
                                         </div>
-
-                                        <div className="flex gap-2">
+                                    </label>
+                                ) : (
+                                    <div className="border border-amber-200 rounded-lg p-3 bg-white">
+                                        <div className="flex items-start gap-3">
+                                            {filePreview ? (
+                                                <img
+                                                    src={filePreview}
+                                                    alt="Receipt preview"
+                                                    className="w-16 h-16 object-cover rounded"
+                                                />
+                                            ) : (
+                                                <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
+                                                    <FileText size={24} className="text-gray-500" />
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-gray-900 truncate">
+                                                    {selectedFile.name}
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                    {(selectedFile.size / 1024).toFixed(1)} KB
+                                                </p>
+                                            </div>
                                             <button
-                                                onClick={() => receiptFileInputRef.current?.click()}
-                                                className="flex-1 px-3 py-2 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 transition flex items-center justify-center gap-2 text-sm font-medium text-blue-700"
+                                                onClick={handleRemoveFile}
+                                                className="p-1 hover:bg-red-100 rounded-full transition-colors"
                                             >
-                                                <Upload size={16} />
-                                                Change Image
-                                            </button>
-                                            <button
-                                                onClick={handleUploadPaymentReceipt}
-                                                disabled={isUploadingReceipt}
-                                                className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2 text-sm font-bold"
-                                            >
-                                                {isUploadingReceipt ? (
-                                                    <>
-                                                        <Loader className="animate-spin" size={16} />
-                                                        Uploading...
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <FileText size={16} />
-                                                        Save to Drive
-                                                    </>
-                                                )}
+                                                <X size={18} className="text-red-600" />
                                             </button>
                                         </div>
                                     </div>
-                                ) : (
-                                    <button
-                                        onClick={() => receiptFileInputRef.current?.click()}
-                                        className="w-full px-4 py-3 border-2 border-dashed border-blue-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition flex items-center justify-center gap-2 text-blue-700 font-medium"
-                                    >
-                                        <Camera size={20} />
-                                        Take/Upload Receipt Photo
-                                    </button>
                                 )}
-
-                                <input
-                                    ref={receiptFileInputRef}
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleReceiptCapture}
-                                    className="hidden"
-                                />
-
-                                <p className="text-xs text-blue-600 mt-2">
-                                    💡 Upload proof of payment (bank transfer receipt, cash receipt, etc.)
-                                </p>
                             </div>
                         )}
 
@@ -515,10 +468,10 @@ const QuickUpdate = () => {
             )}
 
             {/* Empty State */}
-            {!project && !error && !isLoading && (
+            {!project && !error && !isSearching && (
                 <div className="text-center py-12 text-gray-500">
                     <Search size={48} className="mx-auto mb-4 opacity-30" />
-                    <p>Select a project to get started</p>
+                    <p>Select a project above to get started</p>
                 </div>
             )}
         </div>
