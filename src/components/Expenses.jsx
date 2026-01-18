@@ -179,7 +179,7 @@ const Expenses = () => {
                 'https://script.google.com/macros/s/REDACTED_SECRET_7/exec',
                 {
                     method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
+                    // headers: { 'Content-Type': 'text/plain' }, // Removed to avoid preflight
                     body: JSON.stringify({
                         action: 'SCAN_RECEIPT',
                         image: receiptImage,
