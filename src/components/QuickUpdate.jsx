@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Check, Clock, DollarSign, Loader, ChevronDown, Upload, X, FileText, Image } from 'lucide-react';
-import { fetchProjectById, updateProjectStatus, fetchProjects } from '../services/sheetApi';
+import { Search, Check, Clock, DollarSign, Loader, ChevronDown, Upload, X, FileText, Image, Camera } from 'lucide-react';
+import { fetchProjectById, updateProjectStatus, fetchProjects, scanReceiptAPI } from '../services/sheetApi';
 
 const QuickUpdate = () => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -20,6 +20,7 @@ const QuickUpdate = () => {
     // File Upload States
     const [selectedFile, setSelectedFile] = useState(null);
     const [filePreview, setFilePreview] = useState(null);
+    const [isScanning, setIsScanning] = useState(false);
 
     // Payment Details States
     const [paidAmount, setPaidAmount] = useState('');
@@ -128,6 +129,36 @@ const QuickUpdate = () => {
     const handleRemoveFile = () => {
         setSelectedFile(null);
         setFilePreview(null);
+    };
+
+    const handleScanReceipt = async () => {
+        if (!selectedFile || !filePreview) return;
+
+        setIsScanning(true);
+        try {
+            // Extract base64 from data URL
+            const base64 = filePreview.split(',')[1];
+            const apiKey = import.meta.env.VITE_VISION_API_KEY;
+
+            const result = await scanReceiptAPI(base64, apiKey);
+
+            if (result.success && result.extracted) {
+                if (result.extracted.amount) {
+                    setPaidAmount(result.extracted.amount.toString());
+                    setSuccessMessage("✨ Amount extracted: RM " + result.extracted.amount);
+                    setTimeout(() => setSuccessMessage(''), 3000);
+                } else {
+                    alert("Receipt scanned, but no amount found.");
+                }
+            } else {
+                alert(result.error || "Failed to scan receipt.");
+            }
+        } catch (e) {
+            console.error("Scan failed", e);
+            alert("Error scanning receipt.");
+        } finally {
+            setIsScanning(false);
+        }
     };
 
     const handleStatusUpdate = async () => {
@@ -429,9 +460,21 @@ const QuickUpdate = () => {
                                                 <p className="text-sm font-medium text-gray-900 truncate">
                                                     {selectedFile.name}
                                                 </p>
-                                                <p className="text-xs text-gray-500">
-                                                    {(selectedFile.size / 1024).toFixed(1)} KB
-                                                </p>
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <p className="text-xs text-gray-500">
+                                                        {(selectedFile.size / 1024).toFixed(1)} KB
+                                                    </p>
+                                                    {filePreview && (
+                                                        <button
+                                                            onClick={handleScanReceipt}
+                                                            disabled={isScanning}
+                                                            className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1 hover:bg-indigo-200"
+                                                        >
+                                                            {isScanning ? <Loader size={10} className="animate-spin" /> : <Camera size={10} />}
+                                                            {isScanning ? 'Scanning...' : 'Scan Amount'}
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                             <button
                                                 onClick={handleRemoveFile}

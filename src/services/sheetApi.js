@@ -1,6 +1,25 @@
 // Replace this with your generated Web App URL after deployment
 const API_URL = import.meta.env.VITE_API_URL || "https://script.google.com/macros/s/REDACTED_SECRET_7/exec";
 
+// Helper for Robust POST (Direct Blob to avoid CORS Preflight)
+const postData = async (data) => {
+    const blob = new Blob([JSON.stringify(data)], { type: 'text/plain;charset=utf-8' });
+    const response = await fetch(API_URL, {
+        method: "POST",
+        body: blob
+    });
+    return await response.json();
+};
+
+export const scanReceiptAPI = async (base64Image, apiKey) => {
+    const payload = {
+        action: 'SCAN_RECEIPT',
+        image: base64Image,
+        apiKey: apiKey
+    };
+    return await postData(payload);
+};
+
 export const saveInvoiceToSheet = async (invoiceData) => {
 
 
@@ -227,13 +246,9 @@ export const updateProjectStatus = async (projectId, status, receiptData = null,
         data.paidAmount = paidAmount;
     }
 
+    // Use postData for robust CORS handling
     try {
-        const response = await fetch(API_URL, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain" },
-            body: JSON.stringify(data),
-        });
-        return await response.json();
+        return await postData(data);
     } catch (e) {
         console.error("Failed to update status:", e);
         return { error: e.message };
