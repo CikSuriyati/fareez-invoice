@@ -9,10 +9,8 @@ function Login({ onLoginSuccess }) {
 
         // Try to access the API - backend will check email
         try {
-            const response = await fetch(
-                import.meta.env.VITE_API_URL ||
-                'https://script.google.com/macros/s/REDACTED_SECRET_2/exec?action=getDashboardStats&period=MONTH'
-            );
+            const baseUrl = (import.meta.env.VITE_API_URL || 'https://script.google.com/macros/s/REDACTED_SECRET_7/exec').split('?')[0];
+            const response = await fetch(`${baseUrl}?action=getDashboardStats&period=MONTH`);
 
             const result = await response.json();
 
