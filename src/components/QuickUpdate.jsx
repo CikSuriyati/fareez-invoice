@@ -19,6 +19,9 @@ const QuickUpdate = () => {
     // Payment receipt upload
     const [paymentReceipt, setPaymentReceipt] = useState(null);
     const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+    const [isScanningPayment, setIsScanningPayment] = useState(false);
+    const [extractedAmount, setExtractedAmount] = useState(null);
+    const [paymentAmount, setPaymentAmount] = useState('');
     const receiptFileInputRef = useRef(null);
 
     // Load all projects on mount
@@ -124,6 +127,8 @@ const QuickUpdate = () => {
         setError('');
         setSuccessMessage('');
         setPaymentReceipt(null);
+        setExtractedAmount(null);
+        setPaymentAmount('');
         inputRef.current?.focus();
     };
 
@@ -139,8 +144,38 @@ const QuickUpdate = () => {
         const reader = new FileReader();
         reader.onloadend = () => {
             setPaymentReceipt(reader.result);
+            // Auto-scan receipt for amount
+            handleScanPaymentReceipt(reader.result);
         };
         reader.readAsDataURL(file);
+    };
+
+    const handleScanPaymentReceipt = async (imageData) => {
+        setIsScanningPayment(true);
+        setExtractedAmount(null);
+
+        try {
+            const response = await fetch(
+                import.meta.env.VITE_API_URL?.replace('?action=', '?action=scanReceipt') ||
+                'https://script.google.com/macros/s/REDACTED_SECRET_2/exec?action=scanReceipt',
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: imageData })
+                }
+            );
+
+            const result = await response.json();
+
+            if (result.success && result.extracted && result.extracted.amount) {
+                setExtractedAmount(result.extracted.amount);
+                setPaymentAmount(result.extracted.amount.toString());
+            }
+        } catch (error) {
+            console.error('Scan error:', error);
+        } finally {
+            setIsScanningPayment(false);
+        }
     };
 
     const handleUploadPaymentReceipt = async () => {
@@ -358,12 +393,51 @@ const QuickUpdate = () => {
                                 </div>
 
                                 {paymentReceipt ? (
-                                    <div className="space-y-2">
+                                    <div className="space-y-3">
                                         <img
                                             src={paymentReceipt}
                                             alt="Payment Receipt Preview"
                                             className="w-full rounded-lg border-2 border-blue-300"
                                         />
+
+                                        {/* Scanning Indicator */}
+                                        {isScanningPayment && (
+                                            <div className="flex items-center gap-2 text-blue-600 text-sm">
+                                                <Loader className="animate-spin" size={16} />
+                                                Detecting payment amount...
+                                            </div>
+                                        )}
+
+                                        {/* Extracted Amount */}
+                                        {extractedAmount !== null && (
+                                            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                                                <div className="text-xs text-green-700 font-medium mb-1">
+                                                    ✓ Detected from receipt:
+                                                </div>
+                                                <div className="text-2xl font-bold text-green-800">
+                                                    RM {Number(extractedAmount).toFixed(2)}
+                                                </div>
+                                                <div className="text-xs text-gray-600 mt-2">
+                                                    Project Total: RM {(project?.depositPaid || 0).toFixed(2)}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Manual Amount Input */}
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                Verify Payment Amount (RM)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={paymentAmount}
+                                                onChange={(e) => setPaymentAmount(e.target.value)}
+                                                placeholder="Enter amount"
+                                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                                            />
+                                        </div>
+
                                         <div className="flex gap-2">
                                             <button
                                                 onClick={() => receiptFileInputRef.current?.click()}
