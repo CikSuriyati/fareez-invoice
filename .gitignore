@@ -30,3 +30,4 @@ dist-ssr
 # Backend code (deployed to Google Apps Script separately)
 src/Code.gs
 *.gs
+code.gs backup
