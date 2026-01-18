@@ -1,5 +1,5 @@
 // Replace this with your generated Web App URL after deployment
-const API_URL = "https://script.google.com/macros/s/REDACTED_SECRET_2/exec";
+const API_URL = import.meta.env.VITE_API_URL || "https://script.google.com/macros/s/REDACTED_SECRET_7/exec";
 
 export const saveInvoiceToSheet = async (invoiceData) => {
 
@@ -197,12 +197,24 @@ export const fetchCustomers = async () => {
     }
 };
 
-export const updateProjectStatus = async (projectId, status) => {
+export const updateProjectStatus = async (projectId, status, receiptData = null, paidAmount = null) => {
     const data = {
         action: 'UPDATE_STATUS',
         projectId: projectId,
         status: status
     };
+
+    // Add receipt data if provided
+    if (receiptData) {
+        data.receiptData = receiptData.data;
+        data.receiptFileName = receiptData.fileName;
+        data.receiptMimeType = receiptData.mimeType;
+    }
+
+    // Add paid amount if provided
+    if (paidAmount !== null && paidAmount !== undefined) {
+        data.paidAmount = paidAmount;
+    }
 
     try {
         const response = await fetch(API_URL, {
@@ -214,5 +226,15 @@ export const updateProjectStatus = async (projectId, status) => {
     } catch (e) {
         console.error("Failed to update status:", e);
         return { error: e.message };
+    }
+};
+
+export const fetchProjects = async () => {
+    try {
+        const response = await fetch(`${API_URL}?action=getProjects`);
+        return await response.json();
+    } catch (e) {
+        console.error("Failed to fetch projects:", e);
+        return [];
     }
 };
