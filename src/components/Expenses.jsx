@@ -24,6 +24,11 @@ const Expenses = () => {
     const [scanError, setScanError] = useState('');
     const fileInputRef = useRef(null);
 
+    // Receipt File Upload (separate from OCR scanner)
+    const [receiptFile, setReceiptFile] = useState(null);
+    const [receiptFilePreview, setReceiptFilePreview] = useState(null);
+    const receiptUploadRef = useRef(null);
+
     // Form Stats
     const [formData, setFormData] = useState({
         projectId: '',
@@ -86,25 +91,53 @@ const Expenses = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSaving(true);
-        const amount = (parseFloat(formData.qty) || 0) * (parseFloat(formData.unitPrice) || 0);
-        const payload = {
-            ...formData,
-            amount: amount,
-            category: formData.category || 'Material'
-        };
 
-        const success = await saveExpense(payload);
-        if (success) {
-            alert("Expense Saved!");
-            setShowForm(false);
-            setFormData({
-                projectId: '', refNo: '', store: '', desc: '', qty: 1, unitPrice: 0, category: 'Material'
-            });
-            setTimeout(loadData, 2000); // Reload everything
-        } else {
-            alert("Failed to save expense.");
+        try {
+            const amount = (parseFloat(formData.qty) || 0) * (parseFloat(formData.unitPrice) || 0);
+            const payload = {
+                ...formData,
+                amount: amount,
+                category: formData.category || 'Material'
+            };
+
+            // Convert receipt file to base64 if present
+            let receiptData = null;
+            if (receiptFile) {
+                const reader = new FileReader();
+                receiptData = await new Promise((resolve, reject) => {
+                    reader.onloadend = () => {
+                        const base64 = reader.result.split(',')[1];
+                        resolve({
+                            data: base64,
+                            fileName: receiptFile.name,
+                            mimeType: receiptFile.type
+                        });
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(receiptFile);
+                });
+            }
+
+            const success = await saveExpense(payload, receiptData);
+            if (success) {
+                alert("Expense Saved!");
+                setShowForm(false);
+                setFormData({
+                    projectId: '', refNo: '', store: '', desc: '', qty: 1, unitPrice: 0, category: 'Material'
+                });
+                // Clear receipt file
+                setReceiptFile(null);
+                setReceiptFilePreview(null);
+                setTimeout(loadData, 2000); // Reload everything
+            } else {
+                alert("Failed to save expense.");
+            }
+        } catch (error) {
+            console.error('Save error:', error);
+            alert("Failed to save expense: " + error.message);
+        } finally {
+            setIsSaving(false);
         }
-        setIsSaving(false);
     };
 
     // Receipt Scanning Functions
@@ -186,6 +219,46 @@ const Expenses = () => {
         setScanError('');
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
+        }
+    };
+
+    // Receipt File Upload Handler (separate from OCR scanner)
+    const handleReceiptFileSelect = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Validate file type
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+        if (!allowedTypes.includes(file.type)) {
+            alert('Invalid file type. Only JPG, PNG, and PDF are allowed.');
+            return;
+        }
+
+        // Validate file size (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            alert('File too large. Maximum size is 10MB.');
+            return;
+        }
+
+        setReceiptFile(file);
+
+        // Create preview for images
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setReceiptFilePreview(reader.result);
+            };
+            reader.readAsDataURL(file);
+        } else {
+            setReceiptFilePreview(null); // PDF, no preview
+        }
+    };
+
+    const handleRemoveReceiptFile = () => {
+        setReceiptFile(null);
+        setReceiptFilePreview(null);
+        if (receiptUploadRef.current) {
+            receiptUploadRef.current.value = '';
         }
     };
 
@@ -433,6 +506,64 @@ const Expenses = () => {
                                     <label className="block text-xs font-medium text-gray-500 mb-1">Project ID or Type "INVENTORY"</label>
                                     <input type="text" name="projectId" value={formData.projectId} onChange={handleInputChange} className="w-full border p-2 rounded text-sm" placeholder="JOB-XXXX or INVENTORY" />
                                     <p className="text-xs text-gray-500 mt-1">💡 Leave blank if personal expense</p>
+                                </div>
+
+                                {/* Receipt Upload Section */}
+                                <div className="lg:col-span-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                    <label className="block text-sm font-medium text-amber-900 mb-2 flex items-center gap-2">
+                                        <Upload size={18} />
+                                        Attach Receipt (Optional)
+                                    </label>
+
+                                    <input
+                                        ref={receiptUploadRef}
+                                        type="file"
+                                        accept="image/jpeg,image/jpg,image/png,application/pdf"
+                                        onChange={handleReceiptFileSelect}
+                                        className="hidden"
+                                    />
+
+                                    {!receiptFile ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => receiptUploadRef.current?.click()}
+                                            className="w-full border-2 border-dashed border-amber-300 rounded-lg p-4 hover:border-amber-400 hover:bg-amber-100 transition-colors flex items-center justify-center gap-2 text-amber-700"
+                                        >
+                                            <Upload size={20} />
+                                            <span className="text-sm font-medium">Click to upload receipt (JPG, PNG, PDF - max 10MB)</span>
+                                        </button>
+                                    ) : (
+                                        <div className="border border-amber-200 rounded-lg p-3 bg-white">
+                                            <div className="flex items-start gap-3">
+                                                {receiptFilePreview ? (
+                                                    <img
+                                                        src={receiptFilePreview}
+                                                        alt="Receipt preview"
+                                                        className="w-16 h-16 object-cover rounded"
+                                                    />
+                                                ) : (
+                                                    <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
+                                                        <FileText size={24} className="text-gray-500" />
+                                                    </div>
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-medium text-gray-900 truncate">
+                                                        {receiptFile.name}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500">
+                                                        {(receiptFile.size / 1024).toFixed(1)} KB
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleRemoveReceiptFile}
+                                                    className="p-1 hover:bg-red-100 rounded-full transition-colors"
+                                                >
+                                                    <X size={18} className="text-red-600" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="lg:col-span-3 flex justify-end gap-3 mt-2">

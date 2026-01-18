@@ -77,11 +77,18 @@ export const fetchExpenses = async (period = 'MONTH') => {
     }
 };
 
-export const saveExpense = async (expenseData) => {
+export const saveExpense = async (expenseData, receiptData = null) => {
     const payload = {
         action: 'SAVE_EXPENSE',
         expense: expenseData
     };
+
+    // Add receipt data if provided
+    if (receiptData) {
+        payload.receiptData = receiptData.data;
+        payload.receiptFileName = receiptData.fileName;
+        payload.receiptMimeType = receiptData.mimeType;
+    }
 
     // Using no-cors, so we can't read response, but we fire and forget
     const response = await fetch(API_URL, {

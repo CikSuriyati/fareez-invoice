@@ -535,6 +535,19 @@ function doPost(e) {
       if (!expSheet) throw new Error("Sheet '" + SHEET_EXPENSES + "' not found.");
 
       var exp = requestData.expense;
+      var receiptData = requestData.receiptData || null;
+      var receiptFileName = requestData.receiptFileName || '';
+      var receiptMimeType = requestData.receiptMimeType || '';
+      
+      // Upload receipt if provided
+      var receiptUrl = '';
+      if (receiptData) {
+        var uploadResult = uploadExpenseReceipt(exp.refNo, receiptData, receiptFileName, receiptMimeType);
+        if (uploadResult.error) {
+          return jsonResponse({ result: "error", error: uploadResult.error });
+        }
+        receiptUrl = uploadResult.url;
+      }
       
       // User Specified Headers:
       // Col A: Date
@@ -545,6 +558,8 @@ function doPost(e) {
       // Col F: Quantity
       // Col G: Unit Price
       // Col H: Amount
+      // Col I: Category
+      // Col J: Receipt Link (NEW)
 
       var row = [
         new Date(),                 // Date (A)
@@ -555,9 +570,11 @@ function doPost(e) {
         exp.qty || 1,               // Quantity (F)
         exp.unitPrice || 0,         // Unit Price (G)
         exp.amount || 0,            // Amount (H)
-        exp.category || "General"   // Category (I)
+        exp.category || "General",  // Category (I)
+        receiptUrl                  // Receipt Link (J)
       ];
       expSheet.appendRow(row);
+      SpreadsheetApp.flush();
       return jsonResponse({ result: "success", type: "expense" });
     }
 
@@ -1896,4 +1913,75 @@ function getOrCreateReceiptFolder(projectId) {
   }
   
   return projectFolder;
+}
+
+// ============================================
+// EXPENSE RECEIPT UPLOAD
+// ============================================
+
+function uploadExpenseReceipt(refNo, fileData, fileName, mimeType) {
+  try {
+    // Validate file type
+    var allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+    if (allowedTypes.indexOf(mimeType) === -1) {
+      return { error: 'Invalid file type. Only JPG, PNG, and PDF are allowed.' };
+    }
+    
+    // Decode base64
+    var blob = Utilities.newBlob(Utilities.base64Decode(fileData), mimeType, fileName);
+    
+    // Check file size (10MB limit)
+    if (blob.getBytes().length > 10 * 1024 * 1024) {
+      return { error: 'File too large. Maximum size is 10MB.' };
+    }
+    
+    // Get or create folder structure: Receipt > expenses receipts > {REF_NO}
+    var expenseFolder = getOrCreateExpenseReceiptFolder(refNo);
+    
+    // Generate timestamped filename
+    var timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmmss');
+    var ext = fileName.split('.').pop();
+    var newFileName = 'EXPENSE_' + refNo + '_' + timestamp + '.' + ext;
+    
+    // Save file
+    var file = expenseFolder.createFile(blob);
+    file.setName(newFileName);
+    
+    // Return file URL
+    return { 
+      success: true, 
+      url: file.getUrl(),
+      fileName: newFileName
+    };
+    
+  } catch (e) {
+    return { error: 'Upload failed: ' + e.toString() };
+  }
+}
+
+function getOrCreateExpenseReceiptFolder(refNo) {
+  // Navigate to: Receipt > expenses receipts > {REF_NO}
+  var rootFolderId = '1VBUwuWOCvLDK6ktO4ynxQOSUgAm9e3Ul';
+  var rootFolder = DriveApp.getFolderById(rootFolderId);
+  
+  // Get or create "expenses receipts" subfolder
+  var expensesReceiptsFolder;
+  var folders = rootFolder.getFoldersByName('expenses receipts');
+  if (folders.hasNext()) {
+    expensesReceiptsFolder = folders.next();
+  } else {
+    expensesReceiptsFolder = rootFolder.createFolder('expenses receipts');
+  }
+  
+  // Get or create ref-specific subfolder (use refNo or timestamp if no refNo)
+  var folderName = refNo || 'EXP_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMdd');
+  var refFolder;
+  var refFolders = expensesReceiptsFolder.getFoldersByName(folderName);
+  if (refFolders.hasNext()) {
+    refFolder = refFolders.next();
+  } else {
+    refFolder = expensesReceiptsFolder.createFolder(folderName);
+  }
+  
+  return refFolder;
 }
