@@ -2000,7 +2000,14 @@ function getOrCreateExpenseReceiptFolder(refNo) {
 function scanReceipt(imageData) {
   try {
     // Vision API key should be stored in Script Properties for security
-    var apiKey = 'AIzaSyDaR16bSszztAZfiNuXB6ADahPTBtSmkI8';
+    var apiKey = PropertiesService.getScriptProperties().getProperty('VISION_API_KEY');
+    
+    if (!apiKey) {
+      return jsonResponse({
+        success: false,
+        error: 'Vision API Key not configured in Script Properties.'
+      });
+    }
     
     // Remove data URL prefix if present
     var base64Image = imageData;
