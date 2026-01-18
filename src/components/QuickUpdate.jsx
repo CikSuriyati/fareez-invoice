@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Check, Clock, DollarSign, Loader, ChevronDown } from 'lucide-react';
+import { Search, Check, Clock, DollarSign, Loader, ChevronDown, Upload, X, FileText, Image } from 'lucide-react';
 import { fetchProjectById, updateProjectStatus, fetchProjects } from '../services/sheetApi';
 
 const QuickUpdate = () => {
@@ -16,6 +16,13 @@ const QuickUpdate = () => {
     const [filteredProjects, setFilteredProjects] = useState([]);
     const [showDropdown, setShowDropdown] = useState(false);
     const [isLoadingList, setIsLoadingList] = useState(true);
+
+    // File Upload States
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [filePreview, setFilePreview] = useState(null);
+
+    // Payment Details States
+    const [paidAmount, setPaidAmount] = useState('');
 
     // Load projects on mount
     useEffect(() => {
@@ -86,15 +93,92 @@ const QuickUpdate = () => {
         }
     };
 
+    const handleFileSelect = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Validate file type
+        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+        if (!allowedTypes.includes(file.type)) {
+            setError('Invalid file type. Only JPG, PNG, and PDF are allowed.');
+            return;
+        }
+
+        // Validate file size (10MB)
+        if (file.size > 10 * 1024 * 1024) {
+            setError('File too large. Maximum size is 10MB.');
+            return;
+        }
+
+        setSelectedFile(file);
+        setError('');
+
+        // Create preview for images
+        if (file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setFilePreview(reader.result);
+            };
+            reader.readAsDataURL(file);
+        } else {
+            setFilePreview(null);
+        }
+    };
+
+    const handleRemoveFile = () => {
+        setSelectedFile(null);
+        setFilePreview(null);
+    };
+
     const handleStatusUpdate = async () => {
         if (!project || !selectedStatus) return;
+
+        // Validate mandatory paid amount and receipt for PARTIAL/PAID
+        if (selectedStatus === 'PARTIAL' || selectedStatus === 'PAID') {
+            if (!paidAmount || parseFloat(paidAmount) <= 0) {
+                setError('Paid amount is required for PARTIAL and PAID status');
+                return;
+            }
+            if (!selectedFile) {
+                setError('Payment receipt is required for PARTIAL and PAID status');
+                return;
+            }
+        }
 
         setIsUpdating(true);
         setError('');
         setSuccessMessage('');
 
         try {
-            await updateProjectStatus(project.project.id, selectedStatus);
+            let receiptData = null;
+
+            // Convert file to base64 if present
+            if (selectedFile) {
+                const reader = new FileReader();
+                receiptData = await new Promise((resolve, reject) => {
+                    reader.onloadend = () => {
+                        // Remove data URL prefix to get pure base64
+                        const base64 = reader.result.split(',')[1];
+                        resolve({
+                            data: base64,
+                            fileName: selectedFile.name,
+                            mimeType: selectedFile.type
+                        });
+                    };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(selectedFile);
+                });
+            }
+
+            // Include payment amount if present
+            const amount = paidAmount ? parseFloat(paidAmount) : null;
+
+            await updateProjectStatus(
+                project.project.id,
+                selectedStatus,
+                receiptData,
+                amount
+            );
             setSuccessMessage(`✓ Status updated to ${selectedStatus}`);
 
             // Update local state
@@ -107,6 +191,11 @@ const QuickUpdate = () => {
             setProjectsList(prev => prev.map(p =>
                 p.id === project.project.id ? { ...p, status: selectedStatus } : p
             ));
+
+            // Clear file selection and amount
+            setSelectedFile(null);
+            setFilePreview(null);
+            setPaidAmount('');
 
             setTimeout(() => setSuccessMessage(''), 3000);
         } catch (e) {
@@ -182,8 +271,8 @@ const QuickUpdate = () => {
                                             </div>
                                         </div>
                                         <div className={`text-xs px-2 py-1 rounded ${p.status === 'PAID' ? 'bg-green-100 text-green-800' :
-                                                p.status === 'PARTIAL' ? 'bg-yellow-100 text-yellow-800' :
-                                                    'bg-red-100 text-red-800'
+                                            p.status === 'PARTIAL' ? 'bg-yellow-100 text-yellow-800' :
+                                                'bg-red-100 text-red-800'
                                             }`}>
                                             {p.status}
                                         </div>
@@ -279,6 +368,94 @@ const QuickUpdate = () => {
                                 </button>
                             ))}
                         </div>
+
+                        {/* Paid Amount Input - Shows for PARTIAL/PAID */}
+                        {(selectedStatus === 'PARTIAL' || selectedStatus === 'PAID') && (
+                            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <label className="block text-sm font-medium text-blue-900 mb-2">
+                                    Paid Amount (RM) <span className="text-red-600">*</span>
+                                </label>
+                                <div className="relative">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">
+                                        RM
+                                    </span>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        value={paidAmount}
+                                        onChange={(e) => setPaidAmount(e.target.value)}
+                                        placeholder="0.00"
+                                        className="w-full pl-12 pr-4 py-3 border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                </div>
+                                <p className="text-xs text-blue-600 mt-1">
+                                    Enter the amount received from customer
+                                </p>
+                            </div>
+                        )}
+
+                        {/* File Upload Section - Shows for PARTIAL/PAID */}
+                        {(selectedStatus === 'PARTIAL' || selectedStatus === 'PAID') && (
+                            <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <Upload size={18} className="text-amber-700" />
+                                    <span className="text-sm font-medium text-amber-900">
+                                        Payment Receipt Required
+                                    </span>
+                                </div>
+
+                                {!selectedFile ? (
+                                    <label className="block cursor-pointer">
+                                        <input
+                                            type="file"
+                                            accept="image/jpeg,image/jpg,image/png,application/pdf"
+                                            onChange={handleFileSelect}
+                                            className="hidden"
+                                        />
+                                        <div className="border-2 border-dashed border-amber-300 rounded-lg p-6 text-center hover:border-amber-400 hover:bg-amber-100 transition-colors">
+                                            <Upload size={32} className="mx-auto mb-2 text-amber-600" />
+                                            <p className="text-sm text-amber-800 font-medium mb-1">
+                                                Click to upload receipt
+                                            </p>
+                                            <p className="text-xs text-amber-600">
+                                                JPG, PNG, or PDF (max 10MB)
+                                            </p>
+                                        </div>
+                                    </label>
+                                ) : (
+                                    <div className="border border-amber-200 rounded-lg p-3 bg-white">
+                                        <div className="flex items-start gap-3">
+                                            {filePreview ? (
+                                                <img
+                                                    src={filePreview}
+                                                    alt="Receipt preview"
+                                                    className="w-16 h-16 object-cover rounded"
+                                                />
+                                            ) : (
+                                                <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
+                                                    <FileText size={24} className="text-gray-500" />
+                                                </div>
+                                            )}
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-sm font-medium text-gray-900 truncate">
+                                                    {selectedFile.name}
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                    {(selectedFile.size / 1024).toFixed(1)} KB
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={handleRemoveFile}
+                                                className="p-1 hover:bg-red-100 rounded-full transition-colors"
+                                            >
+                                                <X size={18} className="text-red-600" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Save Button */}
                         <button

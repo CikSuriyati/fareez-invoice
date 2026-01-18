@@ -580,9 +580,31 @@ function doPost(e) {
     if (requestData.action === 'UPDATE_STATUS') {
       var projectId = requestData.projectId;
       var newStatus = requestData.status;
+      var paidAmount = requestData.paidAmount || null;
+      var paymentMethod = requestData.paymentMethod || 'Bank Transfer';
+      var notes = requestData.notes || '';
+      var receiptData = requestData.receiptData || null;
+      var receiptFileName = requestData.receiptFileName || '';
+      var receiptMimeType = requestData.receiptMimeType || '';
       
       if (!projectId || !newStatus) {
         return jsonResponse({ result: "error", error: "Missing projectId or status" });
+      }
+      
+      // Validate mandatory paid amount and receipt for PARTIAL and PAID
+      if (newStatus === 'PARTIAL' || newStatus === 'PAID') {
+        if (!paidAmount || paidAmount <= 0) {
+          return jsonResponse({ 
+            result: "error", 
+            error: "Paid amount is required for PARTIAL and PAID status" 
+          });
+        }
+        if (!receiptData) {
+          return jsonResponse({ 
+            result: "error", 
+            error: "Payment receipt is required for PARTIAL and PAID status" 
+          });
+        }
       }
       
       var projectSheet = ss.getSheetByName(SHEET_PROJECTS);
@@ -607,6 +629,76 @@ function doPost(e) {
       
       if (projectRow === -1) {
         return jsonResponse({ result: "error", error: "Project not found: " + projectId });
+      }
+      
+      // Handle payment recording for PARTIAL/PAID
+      var receiptUrl = null;
+      var paymentRefId = null;
+      if (newStatus === 'PARTIAL' || newStatus === 'PAID') {
+        // Upload receipt
+        var uploadResult = uploadPaymentReceipt(projectId, receiptData, receiptFileName, receiptMimeType);
+        if (uploadResult.error) {
+          return jsonResponse({ result: "error", error: uploadResult.error });
+        }
+        receiptUrl = uploadResult.url;
+        
+        // Save to Payment History
+        var paymentHistorySheet = ss.getSheetByName('Payment History');
+        if (!paymentHistorySheet) {
+          return jsonResponse({ result: "error", error: "Payment History sheet not found" });
+        }
+        
+        // Generate Payment Ref ID
+        var timestamp = new Date();
+        var year = timestamp.getFullYear();
+        var month = String(timestamp.getMonth() + 1).padStart(2, '0');
+        
+        // Get next sequence number
+        var paymentData = paymentHistorySheet.getDataRange().getValues();
+        var maxSeq = 0;
+        var refPrefix = 'PAY-' + year + '-' + month + '-';
+        
+        for (var i = 1; i < paymentData.length; i++) {
+          var refId = String(paymentData[i][6] || ''); // Col G: Ref ID
+          if (refId.startsWith(refPrefix)) {
+            var seqStr = refId.split('-')[3];
+            var seq = parseInt(seqStr) || 0;
+            if (seq > maxSeq) maxSeq = seq;
+          }
+        }
+        
+        paymentRefId = refPrefix + String(maxSeq + 1).padStart(3, '0');
+        
+        // Append payment record
+        paymentHistorySheet.appendRow([
+          timestamp,                // Date
+          projectId,                // Project ID
+          paidAmount,               // Paid Amount
+          paymentMethod,            // Payment Method
+          receiptUrl,               // Receipt File Link
+          notes,                    // Notes
+          paymentRefId              // Ref ID
+        ]);
+        
+        // Update deposit in Projects sheet
+        var currentTotal = Number(pData[projectRow - 1][9]) || 0; // Col J: Total
+        var currentDeposit = Number(pData[projectRow - 1][10]) || 0; // Col K: Current Deposit
+        var currentDiscount = Number(pData[projectRow - 1][14]) || 0; // Col O: Discount
+        var netTotal = currentTotal - currentDiscount;
+        
+        if (newStatus === 'PARTIAL') {
+          // Add paid amount to existing deposit
+          var newDeposit = currentDeposit + paidAmount;
+          projectSheet.getRange(projectRow, 11).setValue(newDeposit); // Col K: Deposit
+          // Calculate and update balance
+          var balance = netTotal - newDeposit;
+          projectSheet.getRange(projectRow, 12).setValue(balance); // Col L: Balance
+        } else if (newStatus === 'PAID') {
+          // Add paid amount to existing deposit to reach full payment
+          var newDeposit = currentDeposit + paidAmount;
+          projectSheet.getRange(projectRow, 11).setValue(newDeposit); // Col K: Deposit
+          projectSheet.getRange(projectRow, 12).setValue(0); // Col L: Balance = 0
+        }
       }
       
       // Update status in sheet
@@ -675,24 +767,31 @@ function doPost(e) {
             return jsonResponse({ 
               result: "success", 
               message: "Status updated and " + docInfo.type + " generated",
-              fileUrl: fileUrl 
+              fileUrl: fileUrl,
+              receiptUrl: receiptUrl
             });
           } else {
             return jsonResponse({ 
               result: "success", 
-              message: "Status updated (no line items found for document generation)" 
+              message: "Status updated (no line items found for document generation)",
+              receiptUrl: receiptUrl
             });
           }
         } catch (e) {
           // Update status succeeded, but PDF generation failed
           return jsonResponse({ 
             result: "partial_success", 
-            message: "Status updated but document generation failed: " + e.toString() 
+            message: "Status updated but document generation failed: " + e.toString(),
+            receiptUrl: receiptUrl
           });
         }
       } else {
         // Just a status update, no document generation
-        return jsonResponse({ result: "success", message: "Status updated to " + newStatus });
+        return jsonResponse({ 
+          result: "success", 
+          message: "Status updated to " + newStatus,
+          receiptUrl: receiptUrl
+        });
       }
     }
 
@@ -1740,4 +1839,74 @@ function getProjects() {
   
   // Return reversed to show newest first
   return jsonResponse(projects.reverse());
+}
+
+// ============================================
+// PAYMENT RECEIPT UPLOAD
+// ============================================
+
+function uploadPaymentReceipt(projectId, fileData, fileName, mimeType) {
+  try {
+    // Validate file type
+    var allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+    if (allowedTypes.indexOf(mimeType) === -1) {
+      return { error: 'Invalid file type. Only JPG, PNG, and PDF are allowed.' };
+    }
+    
+    // Decode base64
+    var blob = Utilities.newBlob(Utilities.base64Decode(fileData), mimeType, fileName);
+    
+    // Check file size (10MB limit)
+    if (blob.getBytes().length > 10 * 1024 * 1024) {
+      return { error: 'File too large. Maximum size is 10MB.' };
+    }
+    
+    // Get or create folder structure
+    var receiptFolder = getOrCreateReceiptFolder(projectId);
+    
+    // Generate timestamped filename
+    var timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmmss');
+    var ext = fileName.split('.').pop();
+    var newFileName = 'RECEIPT_' + projectId + '_' + timestamp + '.' + ext;
+    
+    // Save file
+    var file = receiptFolder.createFile(blob);
+    file.setName(newFileName);
+    
+    // Return file URL
+    return { 
+      success: true, 
+      url: file.getUrl(),
+      fileName: newFileName
+    };
+    
+  } catch (e) {
+    return { error: 'Upload failed: ' + e.toString() };
+  }
+}
+
+function getOrCreateReceiptFolder(projectId) {
+  // Navigate to: Receipt > payment receipts > {PROJECT_ID}
+  var rootFolderId = '1VBUwuWOCvLDK6ktO4ynxQOSUgAm9e3Ul';
+  var rootFolder = DriveApp.getFolderById(rootFolderId);
+  
+  // Get or create "payment receipts" subfolder
+  var paymentReceiptsFolder;
+  var folders = rootFolder.getFoldersByName('payment receipts');
+  if (folders.hasNext()) {
+    paymentReceiptsFolder = folders.next();
+  } else {
+    paymentReceiptsFolder = rootFolder.createFolder('payment receipts');
+  }
+  
+  // Get or create project-specific subfolder
+  var projectFolder;
+  var projectFolders = paymentReceiptsFolder.getFoldersByName(projectId);
+  if (projectFolders.hasNext()) {
+    projectFolder = projectFolders.next();
+  } else {
+    projectFolder = paymentReceiptsFolder.createFolder(projectId);
+  }
+  
+  return projectFolder;
 }

@@ -197,12 +197,24 @@ export const fetchCustomers = async () => {
     }
 };
 
-export const updateProjectStatus = async (projectId, status) => {
+export const updateProjectStatus = async (projectId, status, receiptData = null, paidAmount = null) => {
     const data = {
         action: 'UPDATE_STATUS',
         projectId: projectId,
         status: status
     };
+
+    // Add receipt data if provided
+    if (receiptData) {
+        data.receiptData = receiptData.data;
+        data.receiptFileName = receiptData.fileName;
+        data.receiptMimeType = receiptData.mimeType;
+    }
+
+    // Add paid amount if provided
+    if (paidAmount !== null && paidAmount !== undefined) {
+        data.paidAmount = paidAmount;
+    }
 
     try {
         const response = await fetch(API_URL, {
