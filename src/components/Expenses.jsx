@@ -174,17 +174,20 @@ const Expenses = () => {
 
         try {
             // Call backend OCR endpoint
+            // Use Blob to force simple request (prevents CORS preflight)
+            const payload = JSON.stringify({
+                action: 'SCAN_RECEIPT',
+                image: receiptImage,
+                apiKey: import.meta.env.VITE_VISION_API_KEY
+            });
+            const blob = new Blob([payload], { type: 'text/plain;charset=utf-8' });
+
             const response = await fetch(
                 import.meta.env.VITE_API_URL ||
                 'https://script.google.com/macros/s/REDACTED_SECRET_7/exec',
                 {
                     method: 'POST',
-                    // headers: { 'Content-Type': 'text/plain' }, // Removed to avoid preflight
-                    body: JSON.stringify({
-                        action: 'SCAN_RECEIPT',
-                        image: receiptImage,
-                        apiKey: import.meta.env.VITE_VISION_API_KEY // Pass API key from .env
-                    })
+                    body: blob
                 }
             );
 
