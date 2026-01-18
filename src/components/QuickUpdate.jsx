@@ -479,7 +479,6 @@ const QuickUpdate = () => {
                                     ref={receiptFileInputRef}
                                     type="file"
                                     accept="image/*"
-                                    capture="environment"
                                     onChange={handleReceiptCapture}
                                     className="hidden"
                                 />
