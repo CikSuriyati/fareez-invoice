@@ -384,8 +384,8 @@ const QuickUpdate = () => {
                             ))}
                         </div>
 
-                        {/* Payment Receipt Upload (shown when PAID is selected) */}
-                        {selectedStatus === 'PAID' && (
+                        {/* Payment Receipt Upload (shown when PAID or PARTIAL is selected) */}
+                        {(selectedStatus === 'PAID' || selectedStatus === 'PARTIAL') && (
                             <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                                 <div className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
                                     <Camera size={18} className="text-blue-600" />
