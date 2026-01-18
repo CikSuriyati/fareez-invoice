@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { fetchExpenses, saveExpense, fetchInventoryStats, fetchProjectAnalytics } from '../services/sheetApi';
-import { Plus, Filter, ShoppingBag, PieChart, TrendingUp, Search, AlertCircle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Plus, Filter, ShoppingBag, PieChart, TrendingUp, Search, AlertCircle, ArrowUpRight, ArrowDownRight, Camera, X, Loader, Upload } from 'lucide-react';
 
 const Expenses = () => {
     const [view, setView] = useState('LIST'); // 'LIST' or 'ANALYTICS'
@@ -16,6 +16,13 @@ const Expenses = () => {
     const [inventoryValue, setInventoryValue] = useState(0);
     const [projectAnalytics, setProjectAnalytics] = useState([]);
     const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+    // Receipt Scanning State
+    const [showReceiptScanner, setShowReceiptScanner] = useState(false);
+    const [receiptImage, setReceiptImage] = useState(null);
+    const [isScanning, setIsScanning] = useState(false);
+    const [scanError, setScanError] = useState('');
+    const fileInputRef = useRef(null);
 
     // Form Stats
     const [formData, setFormData] = useState({
@@ -100,6 +107,88 @@ const Expenses = () => {
         setIsSaving(false);
     };
 
+    // Receipt Scanning Functions
+    const handleImageCapture = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            setScanError('Please select an image file');
+            return;
+        }
+
+        // Create preview
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setReceiptImage(reader.result);
+            setShowReceiptScanner(true);
+            setScanError('');
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleScanReceipt = async () => {
+        if (!receiptImage) return;
+
+        setIsScanning(true);
+        setScanError('');
+
+        try {
+            // Call backend OCR endpoint
+            const response = await fetch(
+                import.meta.env.VITE_API_URL?.replace('?action=', '?action=scanReceipt') ||
+                'https://script.google.com/macros/s/REDACTED_SECRET_2/exec?action=scanReceipt',
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: receiptImage })
+                }
+            );
+
+            const result = await response.json();
+
+            if (result.error) {
+                setScanError(result.error);
+                return;
+            }
+
+            if (result.success && result.extracted) {
+                // Pre-fill form with extracted data
+                setFormData(prev => ({
+                    ...prev,
+                    store: result.extracted.store || prev.store,
+                    refNo: result.extracted.refNo || prev.refNo,
+                    unitPrice: result.extracted.amount || prev.unitPrice,
+                    desc: result.extracted.store ? `Receipt from ${result.extracted.store}` : prev.desc
+                }));
+
+                // Close scanner and open form
+                setShowReceiptScanner(false);
+                setShowForm(true);
+                setReceiptImage(null);
+
+                // Show success message
+                alert(`✓ Receipt scanned!\nStore: ${result.extracted.store}\nAmount: RM ${result.extracted.amount}`);
+            }
+
+        } catch (error) {
+            console.error('Scan error:', error);
+            setScanError('Failed to scan receipt. Please try again or enter manually.');
+        } finally {
+            setIsScanning(false);
+        }
+    };
+
+    const closeScannerModal = () => {
+        setShowReceiptScanner(false);
+        setReceiptImage(null);
+        setScanError('');
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+    };
+
     // --- Helper: Calculate Category Breakdown from Expenses List ---
     const getCategoryStats = () => {
         const stats = {};
@@ -161,12 +250,29 @@ const Expenses = () => {
                     </div>
 
                     {view === 'LIST' && (
-                        <button
-                            onClick={() => setShowForm(!showForm)}
-                            className="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700 flex items-center gap-2 ml-2"
-                        >
-                            <Plus size={18} /> Add
-                        </button>
+                        <>
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="bg-green-600 text-white px-4 py-2 rounded shadow hover:bg-green-700 flex items-center gap-2 ml-2"
+                            >
+                                <Camera size={18} /> <span className="hidden sm:inline">Scan Receipt</span>
+                            </button>
+                            <button
+                                onClick={() => setShowForm(!showForm)}
+                                className="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700 flex items-center gap-2"
+                            >
+                                <Plus size={18} /> <span className="hidden sm:inline">Add</span>
+                            </button>
+                            {/* Hidden file input for camera/upload */}
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                onChange={handleImageCapture}
+                                className="hidden"
+                            />
+                        </>
                     )}
                 </div>
             </div>
@@ -380,6 +486,81 @@ const Expenses = () => {
                         </div>
                     </div>
                 </>
+            )}
+
+            {/* RECEIPT SCANNER MODAL */}
+            {showReceiptScanner && (
+                <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        {/* Header */}
+                        <div className="p-4 border-b flex justify-between items-center sticky top-0 bg-white">
+                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <Camera className="text-green-600" size={24} />
+                                Receipt Scanner
+                            </h3>
+                            <button
+                                onClick={closeScannerModal}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+
+                        {/* Image Preview */}
+                        <div className="p-6">
+                            {receiptImage && (
+                                <div className="mb-4">
+                                    <img
+                                        src={receiptImage}
+                                        alt="Receipt"
+                                        className="w-full rounded-lg border-2 border-gray-200"
+                                    />
+                                </div>
+                            )}
+
+                            {/* Error Message */}
+                            {scanError && (
+                                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                                    <AlertCircle className="text-red-500 flex-shrink-0 mt-0.5" size={18} />
+                                    <p className="text-sm text-red-700">{scanError}</p>
+                                </div>
+                            )}
+
+                            {/* Action Buttons */}
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-lg hover:border-gray-400 transition flex items-center justify-center gap-2 text-gray-700 font-medium"
+                                >
+                                    <Upload size={20} />
+                                    Change Image
+                                </button>
+                                <button
+                                    onClick={handleScanReceipt}
+                                    disabled={isScanning || !receiptImage}
+                                    className="flex-1 px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center justify-center gap-2 font-bold"
+                                >
+                                    {isScanning ? (
+                                        <>
+                                            <Loader className="animate-spin" size={20} />
+                                            Scanning...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Camera size={20} />
+                                            Scan Receipt
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
+                            {/* Info Text */}
+                            <p className="text-xs text-gray-500 mt-4 text-center">
+                                💡 For best results, ensure receipt is well-lit and text is clear
+                            </p>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

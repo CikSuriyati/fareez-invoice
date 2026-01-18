@@ -83,52 +83,53 @@ const Reports = () => {
     };
 
     return (
-        <div className="p-6">
-            <div className="flex justify-between items-center mb-8">
-                <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    <BarChart className="text-indigo-600" /> Service Reports
+        <div className="p-4 md:p-6 pb-20">
+            {/* Mobile-friendly header */}
+            <div className="mb-6">
+                <h2 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2 mb-4">
+                    <BarChart className="text-indigo-600" size={20} /> Service Reports
                 </h2>
 
-                <div className="flex gap-4 items-center">
-                    {/* Auto-Report Button */}
-                    <button
-                        onClick={handleSetupTrigger}
-                        className="text-xs text-indigo-700 underline hover:text-indigo-900 mr-2"
-                    >
-                        Enable Monthly Auto-Email
-                    </button>
-
+                <div className="space-y-3">
                     {/* Period Toggle */}
-                    <div className="flex bg-white rounded-lg shadow p-1 h-fit">
+                    <div className="flex bg-white rounded-lg shadow p-1 w-full">
                         {['MONTH', 'YEAR', 'ALL'].map((p) => (
                             <button
                                 key={p}
                                 onClick={() => setPeriod(p)}
-                                className={`px-4 py-2 rounded text-sm font-medium transition ${period === p
+                                className={`flex-1 px-2 py-2 rounded text-xs md:text-sm font-medium transition ${period === p
                                     ? 'bg-indigo-600 text-white shadow-sm'
                                     : 'text-gray-600 hover:bg-gray-100'
                                     }`}
                             >
-                                {p === 'MONTH' ? 'This Month' : p === 'YEAR' ? 'This Year' : 'All Time'}
+                                {p === 'MONTH' ? 'Month' : p === 'YEAR' ? 'Year' : 'All'}
                             </button>
                         ))}
                     </div>
 
-                    {/* Generate Report Button */}
-                    <div className="flex gap-2">
+                    {/* Action Buttons */}
+                    <div className="flex flex-col sm:flex-row gap-2">
                         <button
                             onClick={handleTestEmail}
-                            className="bg-green-700 text-white px-4 py-2 rounded-lg shadow hover:bg-green-600 flex items-center gap-2 text-sm font-semibold"
+                            className="bg-green-700 text-white px-4 py-3 rounded-lg shadow hover:bg-green-600 flex items-center justify-center gap-2 text-sm font-semibold flex-1"
                         >
                             <Calendar size={16} /> Send Report Now
                         </button>
                         <button
                             onClick={() => window.open(`?view=PRINTABLE_REPORT&period=${period}`, '_blank')}
-                            className="bg-indigo-900 text-white px-4 py-2 rounded-lg shadow hover:bg-indigo-800 flex items-center gap-2 text-sm font-semibold"
+                            className="bg-indigo-900 text-white px-4 py-3 rounded-lg shadow hover:bg-indigo-800 flex items-center justify-center gap-2 text-sm font-semibold flex-1"
                         >
                             <FileText size={16} /> Print Report
                         </button>
                     </div>
+
+                    {/* Auto-Report Link */}
+                    <button
+                        onClick={handleSetupTrigger}
+                        className="w-full text-xs text-indigo-700 underline hover:text-indigo-900 text-center py-2"
+                    >
+                        Enable Monthly Auto-Email
+                    </button>
                 </div>
             </div>
 
@@ -147,7 +148,33 @@ const Reports = () => {
                             </span>
                         </div>
 
-                        <div className="overflow-x-auto">
+                        {/* Mobile: Card Layout, Desktop: Table */}
+                        <div className="block md:hidden">
+                            {report.map((item, index) => (
+                                <div key={index} className="p-4 border-b border-gray-200 hover:bg-gray-50">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div>
+                                            <div className="text-xs text-gray-500 font-mono">#{index + 1}</div>
+                                            <div className="font-medium text-gray-900 mt-1">{item.type}</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-green-700 font-bold">RM {Number(item.revenue).toFixed(2)}</div>
+                                            <div className="bg-blue-100 text-blue-800 py-1 px-2 rounded-full text-xs font-bold mt-1 inline-block">
+                                                {item.qty} units
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                            {report.length === 0 && (
+                                <div className="p-8 text-center text-gray-500">
+                                    No service data found for this period.
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Desktop: Table Layout */}
+                        <div className="hidden md:block overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>

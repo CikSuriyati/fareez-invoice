@@ -25,6 +25,15 @@
     margin-bottom: 2rem;
 }
 
+.app-icon {
+    width: 120px;
+    height: 120px;
+    border-radius: 24px;
+    margin: 0 auto 1rem auto;
+    display: block;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
 .text-logo {
     font-family: 'Times New Roman', serif;
     font-size: 64px;

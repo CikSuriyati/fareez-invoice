@@ -40,17 +40,8 @@ function Login({ onLoginSuccess }) {
                 </div>
 
                 <p className="login-subtitle">
-                    Welcome! Please ensure you're logged into Google with an authorized account.
+                    Sign in to continue
                 </p>
-
-                <div className="login-instructions">
-                    <p><strong>To proceed:</strong></p>
-                    <ol>
-                        <li>Make sure you're logged into Google in this browser</li>
-                        <li>Your email must be in the authorized users list</li>
-                        <li>Click "Check Access" below</li>
-                    </ol>
-                </div>
 
                 <button
                     onClick={handleContinue}
@@ -61,10 +52,7 @@ function Login({ onLoginSuccess }) {
                 </button>
 
                 <div className="login-footer">
-                    <p>🔒 Authorized users only</p>
-                    <p className="footer-note">
-                        Contact admin if you need access
-                    </p>
+                    <p className="footer-note">Authorized users only</p>
                 </div>
             </div>
         </div>
