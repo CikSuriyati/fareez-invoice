@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Check, Clock, DollarSign, Loader, ChevronDown, X } from 'lucide-react';
+import { Search, Check, Clock, DollarSign, Loader, ChevronDown, X, Camera, Upload, FileText } from 'lucide-react';
 import { fetchProjectById, updateProjectStatus } from '../services/sheetApi';
 
 const QuickUpdate = () => {
@@ -15,6 +15,11 @@ const QuickUpdate = () => {
     const [selectedProjectDisplay, setSelectedProjectDisplay] = useState('');
     const dropdownRef = useRef(null);
     const inputRef = useRef(null);
+
+    // Payment receipt upload
+    const [paymentReceipt, setPaymentReceipt] = useState(null);
+    const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+    const receiptFileInputRef = useRef(null);
 
     // Load all projects on mount
     useEffect(() => {
@@ -118,7 +123,58 @@ const QuickUpdate = () => {
         setProject(null);
         setError('');
         setSuccessMessage('');
+        setPaymentReceipt(null);
         inputRef.current?.focus();
+    };
+
+    const handleReceiptCapture = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            setError('Please select an image file');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setPaymentReceipt(reader.result);
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleUploadPaymentReceipt = async () => {
+        if (!paymentReceipt || !project) return;
+
+        setIsUploadingReceipt(true);
+
+        try {
+            const response = await fetch(
+                import.meta.env.VITE_API_URL?.replace('?action=', '?action=uploadPaymentReceipt') ||
+                'https://script.google.com/macros/s/REDACTED_SECRET_2/exec?action=uploadPaymentReceipt',
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        image: paymentReceipt,
+                        projectId: project.project.id
+                    })
+                }
+            );
+
+            const result = await response.json();
+
+            if (result.error) {
+                setError(result.error);
+            } else {
+                setSuccessMessage('✓ Receipt uploaded successfully!');
+            }
+        } catch (error) {
+            console.error('Upload error:', error);
+            setError('Failed to upload receipt. Please try again.');
+        } finally {
+            setIsUploadingReceipt(false);
+        }
     };
 
     const getStatusColor = (status) => {
@@ -292,6 +348,73 @@ const QuickUpdate = () => {
                                 </button>
                             ))}
                         </div>
+
+                        {/* Payment Receipt Upload (shown when PAID is selected) */}
+                        {selectedStatus === 'PAID' && (
+                            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <div className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                                    <Camera size={18} className="text-blue-600" />
+                                    Payment Receipt (Optional)
+                                </div>
+
+                                {paymentReceipt ? (
+                                    <div className="space-y-2">
+                                        <img
+                                            src={paymentReceipt}
+                                            alt="Payment Receipt Preview"
+                                            className="w-full rounded-lg border-2 border-blue-300"
+                                        />
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => receiptFileInputRef.current?.click()}
+                                                className="flex-1 px-3 py-2 bg-white border border-blue-300 rounded-lg hover:bg-blue-50 transition flex items-center justify-center gap-2 text-sm font-medium text-blue-700"
+                                            >
+                                                <Upload size={16} />
+                                                Change Image
+                                            </button>
+                                            <button
+                                                onClick={handleUploadPaymentReceipt}
+                                                disabled={isUploadingReceipt}
+                                                className="flex-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition flex items-center justify-center gap-2 text-sm font-bold"
+                                            >
+                                                {isUploadingReceipt ? (
+                                                    <>
+                                                        <Loader className="animate-spin" size={16} />
+                                                        Uploading...
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <FileText size={16} />
+                                                        Save to Drive
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => receiptFileInputRef.current?.click()}
+                                        className="w-full px-4 py-3 border-2 border-dashed border-blue-300 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition flex items-center justify-center gap-2 text-blue-700 font-medium"
+                                    >
+                                        <Camera size={20} />
+                                        Take/Upload Receipt Photo
+                                    </button>
+                                )}
+
+                                <input
+                                    ref={receiptFileInputRef}
+                                    type="file"
+                                    accept="image/*"
+                                    capture="environment"
+                                    onChange={handleReceiptCapture}
+                                    className="hidden"
+                                />
+
+                                <p className="text-xs text-blue-600 mt-2">
+                                    💡 Upload proof of payment (bank transfer receipt, cash receipt, etc.)
+                                </p>
+                            </div>
+                        )}
 
                         {/* Save Button */}
                         <button

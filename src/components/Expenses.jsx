@@ -163,10 +163,10 @@ const Expenses = () => {
                     desc: result.extracted.store ? `Receipt from ${result.extracted.store}` : prev.desc
                 }));
 
-                // Close scanner and open form
-                setShowReceiptScanner(false);
+                // Keep scanner open, open form for editing
+                // setShowReceiptScanner(false); // Removed as per instruction
                 setShowForm(true);
-                setReceiptImage(null);
+                // setReceiptImage(null); // Removed as per instruction
 
                 // Show success message
                 alert(`✓ Receipt scanned!\nStore: ${result.extracted.store}\nAmount: RM ${result.extracted.amount}`);
@@ -431,12 +431,15 @@ const Expenses = () => {
                                     <input type="text" name="refNo" required value={formData.refNo} onChange={handleInputChange} className="w-full border p-2 rounded text-sm" />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Project ID (Optional)</label>
-                                    <input type="text" name="projectId" value={formData.projectId} onChange={handleInputChange} className="w-full border p-2 rounded text-sm" placeholder="JOB-XXXX..." />
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">Project ID or Type "INVENTORY"</label>
+                                    <input type="text" name="projectId" value={formData.projectId} onChange={handleInputChange} className="w-full border p-2 rounded text-sm" placeholder="JOB-XXXX or INVENTORY" />
+                                    <p className="text-xs text-gray-500 mt-1">💡 Leave blank if personal expense</p>
                                 </div>
 
                                 <div className="lg:col-span-3 flex justify-end gap-3 mt-2">
-                                    <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 text-gray-500 hover:text-gray-700 text-sm">Cancel</button>
+                                    <button type="button" onClick={() => { setShowForm(false); setReceiptImage(null); }} className="px-4 py-2 text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 rounded text-sm font-medium">
+                                        Discard (Personal)
+                                    </button>
                                     <button type="submit" disabled={isSaving} className="bg-green-600 text-white px-6 py-2 rounded shadow hover:bg-green-700 text-sm font-bold">
                                         {isSaving ? 'Saving...' : 'Save Record'}
                                     </button>
