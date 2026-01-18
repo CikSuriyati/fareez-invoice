@@ -192,7 +192,9 @@ const QuickUpdate = () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         image: paymentReceipt,
-                        projectId: project.project.id
+                        projectId: project.project.id,
+                        amount: paymentAmount,
+                        status: selectedStatus
                     })
                 }
             );
@@ -202,7 +204,8 @@ const QuickUpdate = () => {
             if (result.error) {
                 setError(result.error);
             } else {
-                setSuccessMessage('✓ Receipt uploaded successfully!');
+                const docType = result.documentType || (selectedStatus === 'PAID' ? 'RECEIPT' : 'INVOICE');
+                setSuccessMessage(`✓ ${docType} generated! Payment receipt uploaded successfully.`);
             }
         } catch (error) {
             console.error('Upload error:', error);
