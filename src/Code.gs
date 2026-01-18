@@ -29,6 +29,8 @@ function doGet(e) {
     return getServiceReport(e.parameter.period); 
   } else if (action === "getCompanyReport") {
     return getCompanyReport(e.parameter.period);
+  } else if (action === "getProjects") {
+    return getProjects();
   }
 
   return jsonResponse({ error: "Action not specified or recognized." });
@@ -574,6 +576,126 @@ function doPost(e) {
        return jsonResponse({ result: "Trigger configured for 1st of each month." });
     }
 
+    // --- UPDATE_STATUS HANDLING (Quick Update) ---
+    if (requestData.action === 'UPDATE_STATUS') {
+      var projectId = requestData.projectId;
+      var newStatus = requestData.status;
+      
+      if (!projectId || !newStatus) {
+        return jsonResponse({ result: "error", error: "Missing projectId or status" });
+      }
+      
+      var projectSheet = ss.getSheetByName(SHEET_PROJECTS);
+      var itemSheet = getSheetById(ss, 663549614);
+      if (!itemSheet) itemSheet = ss.getSheetByName(SHEET_ITEMS);
+      
+      if (!projectSheet) {
+        return jsonResponse({ result: "error", error: "Projects sheet not found" });
+      }
+      
+      // Find project row
+      var pData = projectSheet.getDataRange().getValues();
+      var projectRow = -1;
+      var searchId = String(projectId).trim();
+      
+      for (var i = 1; i < pData.length; i++) {
+        if (String(pData[i][1]).trim() === searchId) {
+          projectRow = i + 1; // 1-indexed for sheet
+          break;
+        }
+      }
+      
+      if (projectRow === -1) {
+        return jsonResponse({ result: "error", error: "Project not found: " + projectId });
+      }
+      
+      // Update status in sheet
+      projectSheet.getRange(projectRow, 13).setValue(newStatus); // Col M: Status
+      
+      // Determine if we should generate a document
+      var shouldGenerateDoc = (newStatus === 'PARTIAL' || newStatus === 'PAID');
+      
+      if (shouldGenerateDoc) {
+        try {
+          // Fetch project data
+          var rowData = pData[projectRow - 1];
+          var projectData = {
+            id: rowData[1],
+            customer: rowData[2],
+            email: rowData[3],
+            phone: rowData[4],
+            address: rowData[5],
+            deposit: rowData[10],
+            discount: rowData[14] || 0
+          };
+          
+          // Fetch line items
+          var allItems = itemSheet.getDataRange().getValues();
+          var lineItems = [];
+          var searchIdUpper = searchId.toUpperCase();
+          
+          for (var j = 1; j < allItems.length; j++) {
+            if (String(allItems[j][0]).trim().toUpperCase() === searchIdUpper) {
+              lineItems.push({
+                room: allItems[j][1],
+                type: allItems[j][2],
+                desc: allItems[j][3],
+                unitPrice: Number(allItems[j][4]) || 0,
+                qty: Number(allItems[j][5]) || 0,
+                total: Number(allItems[j][6]) || 0
+              });
+            }
+          }
+          
+          if (lineItems.length > 0) {
+            // Generate PDF
+            var docInfo = getDocTypeFromStatus(newStatus);
+            var pdfResult = generatePDFfromData(projectData, lineItems, newStatus);
+            
+            // Get year from project ID or current year
+            var year = new Date().getFullYear();
+            var idMatch = projectId.match(/(\d{4})/);
+            if (idMatch) {
+              year = idMatch[1];
+            }
+            
+            // Get target folder
+            var targetFolder = getOrCreateYearSubfolder(FOLDER_NAME, year, docInfo.subfolder);
+            
+            // Save to Drive
+            var fileUrl = savePDFToDrive(pdfResult.blob, pdfResult.filename, targetFolder);
+            
+            // Update sheet with document link and status
+            var statusText = docInfo.type === 'INVOICE' ? 'Invoice generated' : 'Receipt generated';
+            projectSheet.getRange(projectRow, 8).setValue(statusText); // Col H: Status
+            projectSheet.getRange(projectRow, 9).setValue(fileUrl); // Col I: Doc Link
+            
+            SpreadsheetApp.flush();
+            
+            return jsonResponse({ 
+              result: "success", 
+              message: "Status updated and " + docInfo.type + " generated",
+              fileUrl: fileUrl 
+            });
+          } else {
+            return jsonResponse({ 
+              result: "success", 
+              message: "Status updated (no line items found for document generation)" 
+            });
+          }
+        } catch (e) {
+          // Update status succeeded, but PDF generation failed
+          return jsonResponse({ 
+            result: "partial_success", 
+            message: "Status updated but document generation failed: " + e.toString() 
+          });
+        }
+      } else {
+        // Just a status update, no document generation
+        return jsonResponse({ result: "success", message: "Status updated to " + newStatus });
+      }
+    }
+
     // --- INVOICE HANDLING (Default) ---
     // If no action or action is undefined, assume it's the old Invoice/Project save
     var data = requestData; // Standard Invoice Payload
@@ -717,6 +839,74 @@ function doPost(e) {
     }
     
     SpreadsheetApp.flush();
+
+    // ---------------------------------------------------------
+    // 3. GENERATE AND SAVE PDF TO DRIVE
+    // ---------------------------------------------------------
+    try {
+      // Only generate PDF if we have line items and a document type
+      if (data.items && data.items.length > 0 && data.type) {
+        // Prepare project data for PDF generation
+        var pdfProjectData = {
+          id: projectId,
+          customer: data.project.customer,
+          email: data.project.email,
+          phone: data.project.phone,
+          address: data.project.address,
+          deposit: data.totals.deposit || 0,
+          discount: data.discount || 0
+        };
+        
+        // Prepare line items
+        var pdfLineItems = data.items.map(function(item) {
+          return {
+            room: item.room || "",
+            type: item.type || "",
+            desc: item.desc || "",
+            unitPrice: Number(item.unitPrice) || 0,
+            qty: Number(item.qty) || 0,
+            total: (Number(item.unitPrice) || 0) * (Number(item.qty) || 0)
+          };
+        });
+        
+        // Generate PDF
+        var docInfo = getDocTypeFromStatus(data.type);
+        var pdfResult = generatePDFfromData(pdfProjectData, pdfLineItems, data.type);
+        
+        // Get year from project ID or current year
+        var year = new Date().getFullYear();
+        var idMatch = projectId.match(/(\d{4})/);
+        if (idMatch) {
+          year = idMatch[1];
+        }
+        
+        // Get target folder
+        var targetFolder = getOrCreateYearSubfolder(FOLDER_NAME, year, docInfo.subfolder);
+        
+        // Save to Drive
+        var fileUrl = savePDFToDrive(pdfResult.blob, pdfResult.filename, targetFolder);
+        
+        // Update the Doc Link column (Col I = index 9)
+        if (rowIndexToUpdate > 0) {
+          projectSheet.getRange(rowIndexToUpdate, 9).setValue(fileUrl);
+        } else {
+          // For new rows, we need to find it again (just appended)
+          var allData = projectSheet.getDataRange().getValues();
+          for (var k = allData.length - 1; k >= 1; k--) {
+            if (String(allData[k][1]).trim() === searchId) {
+              projectSheet.getRange(k + 1, 9).setValue(fileUrl);
+              break;
+            }
+          }
+        }
+        
+        SpreadsheetApp.flush();
+      }
+    } catch (driveError) {
+      // Don't fail the entire save if Drive fails
+      // Just log the error and continue
+      Logger.log("Drive save failed: " + driveError.toString());
+    }
 
     return jsonResponse({ result: "success", id: projectId, action: rowIndexToUpdate > 0 ? "updated" : "created" });
 
@@ -1003,6 +1193,8 @@ function generateDocument(type) {
     template.deposit = depositPaid;
     template.discount = discount;
     template.balance = balanceDue;
+    template.subtotal = totalAmount; // Fix ReferenceError
+    template.netTotal = netTotal;    // Fix ReferenceError
 
     let status = "UNPAID";
     if (depositPaid >= netTotal && netTotal > 0) {
@@ -1047,6 +1239,147 @@ function getOrCreateFolder(name) {
     return folders.next();
   } else {
     return DriveApp.createFolder(name);
+  }
+}
+
+// Helper: Get or Create Year-Based Subfolder
+// Creates structure: Handyman Docs/{YEAR}/{Type}/
+function getOrCreateYearSubfolder(parentFolderName, year, docType) {
+  // 1. Get/Create parent folder
+  var parentFolder = getOrCreateFolder(parentFolderName);
+  
+  // 2. Get/Create year folder
+  var yearFolderName = String(year);
+  var yearFolder = null;
+  var yearFolders = parentFolder.getFoldersByName(yearFolderName);
+  if (yearFolders.hasNext()) {
+    yearFolder = yearFolders.next();
+  } else {
+    yearFolder = parentFolder.createFolder(yearFolderName);
+  }
+  
+  // 3. Get/Create type folder within year folder
+  var typeFolder = null;
+  var typeFolders = yearFolder.getFoldersByName(docType);
+  if (typeFolders.hasNext()) {
+    typeFolder = typeFolders.next();
+  } else {
+    typeFolder = yearFolder.createFolder(docType);
+  }
+  
+  return typeFolder;
+}
+
+// Helper: Determine Document Type from Status or Type
+function getDocTypeFromStatus(statusOrType) {
+  var upper = String(statusOrType).toUpperCase().trim();
+  
+  // Direct type match
+  if (upper === 'QUOTATION') {
+    return { type: 'QUOTATION', prefix: 'QTN', subfolder: 'Quotation' };
+  } else if (upper === 'INVOICE') {
+    return { type: 'INVOICE', prefix: 'INV', subfolder: 'Invoice' };
+  } else if (upper === 'RECEIPT') {
+    return { type: 'RECEIPT', prefix: 'RCT', subfolder: 'Receipt' };
+  }
+  
+  // Status-based mapping
+  if (upper === 'PAID') {
+    return { type: 'RECEIPT', prefix: 'RCT', subfolder: 'Receipt' };
+  } else if (upper === 'PARTIAL') {
+    return { type: 'INVOICE', prefix: 'INV', subfolder: 'Invoice' };
+  } else {
+    // Default: UNPAID or anything else = Quotation
+    return { type: 'QUOTATION', prefix: 'QTN', subfolder: 'Quotation' };
+  }
+}
+
+// Helper: Generate PDF from Project Data
+function generatePDFfromData(projectData, lineItems, docType) {
+  try {
+    var template = HtmlService.createTemplateFromFile('template');
+    
+    // Get document info
+    var docInfo = getDocTypeFromStatus(docType);
+    
+    // Replace prefix in project ID
+    var docId = String(projectData.id).replace(/^(JOB|HM|INV|QTN)/, docInfo.prefix);
+    
+    template.type = docInfo.type;
+    template.project = {
+      id: docId,
+      originalId: projectData.id,
+      customer: projectData.customer,
+      address: projectData.address,
+      phone: projectData.phone,
+      email: projectData.email,
+      date: new Date().toLocaleDateString()
+    };
+    
+    template.items = lineItems;
+    
+    // Calculate totals
+    var subtotal = 0;
+    for (var i = 0; i < lineItems.length; i++) {
+      subtotal += lineItems[i].total || 0;
+    }
+    
+    var discount = Number(projectData.discount) || 0;
+    var netTotal = subtotal - discount;
+    var depositPaid = Number(projectData.deposit) || 0;
+    var balanceDue = netTotal - depositPaid;
+    
+    template.subtotal = subtotal;
+    template.total = subtotal;
+    template.discount = discount;
+    template.netTotal = netTotal;
+    template.deposit = depositPaid;
+    template.balance = balanceDue;
+    
+    // Determine status
+    var status = 'UNPAID';
+    if (depositPaid >= netTotal && netTotal > 0) {
+      status = 'PAID';
+    } else if (depositPaid > 0 && depositPaid < netTotal) {
+      status = 'PARTIAL';
+    }
+    template.status = status;
+    
+    // Generate PDF Blob
+    var htmlObj = template.evaluate();
+    var pdfBlob = Utilities.newBlob(htmlObj.getContent(), 'text/html', docId + ".html")
+                    .getAs(MimeType.PDF)
+                    .setName(docId + ".pdf");
+    
+    return { blob: pdfBlob, filename: docId + ".pdf" };
+  } catch (e) {
+    throw new Error("PDF Generation Failed: " + e.toString());
+  }
+}
+
+// Helper: Save PDF to Drive with Version Control
+function savePDFToDrive(pdfBlob, filename, targetFolder) {
+  // Check if file already exists
+  var existingFiles = targetFolder.getFilesByName(filename);
+  
+  if (existingFiles.hasNext()) {
+    // File exists, create versioned copy
+    var version = 2;
+    var baseName = filename.replace('.pdf', '');
+    var versionedName = baseName + '_v' + version + '.pdf';
+    
+    // Find next available version number
+    while (targetFolder.getFilesByName(versionedName).hasNext()) {
+      version++;
+      versionedName = baseName + '_v' + version + '.pdf';
+    }
+    
+    var file = targetFolder.createFile(pdfBlob.setName(versionedName));
+    return file.getUrl();
+  } else {
+    // Create new file
+    var file = targetFolder.createFile(pdfBlob);
+    return file.getUrl();
   }
 }
 
@@ -1377,4 +1710,34 @@ function buildReportHtml(data) {
   `;
   
   return html;
+}
+
+function getProjects() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_PROJECTS);
+  
+  if (!sheet) {
+    return jsonResponse([]);
+  }
+  
+  var data = sheet.getDataRange().getValues();
+  var projects = [];
+  
+  // Skip header, start at 1
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    var id = row[1]; // Col B
+    
+    // Only include if ID exists
+    if (id) {
+       projects.push({
+         id: String(id),
+         customer: row[2], // Col C
+         status: row[12] || 'UNPAID' // Col M
+       });
+    }
+  }
+  
+  // Return reversed to show newest first
+  return jsonResponse(projects.reverse());
 }

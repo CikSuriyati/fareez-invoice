@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Search, Check, Clock, DollarSign, Loader } from 'lucide-react';
-import { fetchProjectById, updateProjectStatus } from '../services/sheetApi';
+import React, { useState, useEffect } from 'react';
+import { Search, Check, Clock, DollarSign, Loader, ChevronDown } from 'lucide-react';
+import { fetchProjectById, updateProjectStatus, fetchProjects } from '../services/sheetApi';
 
 const QuickUpdate = () => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -11,9 +11,56 @@ const QuickUpdate = () => {
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
-    const handleSearch = async () => {
+    // Dropdown States
+    const [projectsList, setProjectsList] = useState([]);
+    const [filteredProjects, setFilteredProjects] = useState([]);
+    const [showDropdown, setShowDropdown] = useState(false);
+    const [isLoadingList, setIsLoadingList] = useState(true);
+
+    // Load projects on mount
+    useEffect(() => {
+        loadProjects();
+    }, []);
+
+    // Filter projects when search query changes
+    useEffect(() => {
         if (!searchQuery.trim()) {
-            setError('Please enter a Project ID or Customer Name');
+            setFilteredProjects(projectsList);
+        } else {
+            const lowerQuery = searchQuery.toLowerCase();
+            const filtered = projectsList.filter(p =>
+                p.id.toLowerCase().includes(lowerQuery) ||
+                p.customer.toLowerCase().includes(lowerQuery)
+            );
+            setFilteredProjects(filtered);
+        }
+    }, [searchQuery, projectsList]);
+
+    const loadProjects = async () => {
+        try {
+            const list = await fetchProjects();
+            // Ensure unique projects just in case
+            const unique = list.filter((v, i, a) => a.findIndex(t => t.id === v.id) === i);
+            setProjectsList(unique);
+            setFilteredProjects(unique);
+        } catch (e) {
+            console.error("Failed to load projects list", e);
+        } finally {
+            setIsLoadingList(false);
+        }
+    };
+
+    const handleSelectProject = async (projectId) => {
+        setSearchQuery(projectId);
+        setShowDropdown(false);
+        await handleSearch(projectId);
+    };
+
+    const handleSearch = async (overrideId) => {
+        const idToSearch = overrideId || searchQuery;
+
+        if (!idToSearch.trim()) {
+            setError('Please select or enter a Project ID');
             return;
         }
 
@@ -23,11 +70,10 @@ const QuickUpdate = () => {
         setSuccessMessage('');
 
         try {
-            // Try to fetch by project ID
-            const data = await fetchProjectById(searchQuery.trim());
+            const data = await fetchProjectById(idToSearch.trim());
 
             if (data.error) {
-                setError(`Project not found: ${searchQuery}`);
+                setError(`Project not found: ${idToSearch}`);
             } else {
                 setProject(data);
                 setSelectedStatus(data.status || 'UNPAID');
@@ -57,7 +103,11 @@ const QuickUpdate = () => {
                 status: selectedStatus
             });
 
-            // Clear success message after 3 seconds
+            // Also update the list item's status if it exists
+            setProjectsList(prev => prev.map(p =>
+                p.id === project.project.id ? { ...p, status: selectedStatus } : p
+            ));
+
             setTimeout(() => setSuccessMessage(''), 3000);
         } catch (e) {
             setError('Failed to update status. Please try again.');
@@ -85,36 +135,75 @@ const QuickUpdate = () => {
             </div>
 
             {/* Search Section */}
-            <div className="bg-white rounded-lg shadow-md p-4 mb-4">
+            <div className="bg-white rounded-lg shadow-md p-4 mb-4 relative z-20">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                     Search Project
                 </label>
-                <div className="flex gap-2">
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                        placeholder="Enter Project ID (e.g., JOB-2026-01-015)"
-                        className="flex-1 border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                    <button
-                        onClick={handleSearch}
-                        disabled={isSearching}
-                        className="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-w-[100px] justify-center"
-                    >
-                        {isSearching ? (
-                            <>
-                                <Loader className="animate-spin" size={18} />
-                                <span className="hidden sm:inline">Searching...</span>
-                            </>
-                        ) : (
-                            <>
-                                <Search size={18} />
-                                <span className="hidden sm:inline">Search</span>
-                            </>
-                        )}
-                    </button>
+                <div className="relative">
+                    <div className="flex gap-2">
+                        <div className="relative flex-1">
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => {
+                                    setSearchQuery(e.target.value);
+                                    setShowDropdown(true);
+                                }}
+                                onFocus={() => setShowDropdown(true)}
+                                placeholder={isLoadingList ? "Loading projects..." : "Select or type Project ID..."}
+                                className="w-full border border-gray-300 rounded-lg pl-4 pr-10 py-3 text-base focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                                {isLoadingList ? (
+                                    <Loader className="animate-spin" size={18} />
+                                ) : (
+                                    <ChevronDown size={18} />
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Dropdown Menu */}
+                    {showDropdown && (searchQuery || projectsList.length > 0) && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto z-50">
+                            {filteredProjects.length > 0 ? (
+                                filteredProjects.map((p) => (
+                                    <button
+                                        key={p.id}
+                                        className="w-full text-left px-4 py-3 hover:bg-indigo-50 border-b border-gray-100 last:border-0 flex justify-between items-center group"
+                                        onClick={() => handleSelectProject(p.id)}
+                                    >
+                                        <div>
+                                            <div className="font-medium text-gray-900 group-hover:text-indigo-700">
+                                                {p.id}
+                                            </div>
+                                            <div className="text-xs text-gray-500">
+                                                {p.customer}
+                                            </div>
+                                        </div>
+                                        <div className={`text-xs px-2 py-1 rounded ${p.status === 'PAID' ? 'bg-green-100 text-green-800' :
+                                                p.status === 'PARTIAL' ? 'bg-yellow-100 text-yellow-800' :
+                                                    'bg-red-100 text-red-800'
+                                            }`}>
+                                            {p.status}
+                                        </div>
+                                    </button>
+                                ))
+                            ) : (
+                                <div className="p-4 text-center text-gray-500 text-sm">
+                                    No projects found
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Overlay to close dropdown when clicking outside */}
+                    {showDropdown && (
+                        <div
+                            className="fixed inset-0 z-[-1]"
+                            onClick={() => setShowDropdown(false)}
+                        />
+                    )}
                 </div>
             </div>
 
@@ -135,7 +224,7 @@ const QuickUpdate = () => {
 
             {/* Project Details & Status Update */}
             {project && (
-                <div className="bg-white rounded-lg shadow-md overflow-hidden">
+                <div className="bg-white rounded-lg shadow-md overflow-hidden relative z-10">
                     {/* Project Header */}
                     <div className="bg-indigo-600 text-white p-4">
                         <div className="text-sm opacity-90 mb-1">Project ID</div>
@@ -174,8 +263,8 @@ const QuickUpdate = () => {
                                     key={status}
                                     onClick={() => setSelectedStatus(status)}
                                     className={`w-full py-3 px-4 rounded-lg font-medium border-2 transition-all ${selectedStatus === status
-                                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                                            : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
+                                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                                        : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                                         } ${status === project.status ? 'opacity-50' : ''}`}
                                 >
                                     <div className="flex items-center justify-between">
@@ -217,7 +306,7 @@ const QuickUpdate = () => {
             {!project && !error && !isSearching && (
                 <div className="text-center py-12 text-gray-500">
                     <Search size={48} className="mx-auto mb-4 opacity-30" />
-                    <p>Enter a Project ID to get started</p>
+                    <p>Select a project above to get started</p>
                 </div>
             )}
         </div>

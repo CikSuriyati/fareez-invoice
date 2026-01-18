@@ -216,3 +216,13 @@ export const updateProjectStatus = async (projectId, status) => {
         return { error: e.message };
     }
 };
+
+export const fetchProjects = async () => {
+    try {
+        const response = await fetch(`${API_URL}?action=getProjects`);
+        return await response.json();
+    } catch (e) {
+        console.error("Failed to fetch projects:", e);
+        return [];
+    }
+};
