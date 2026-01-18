@@ -170,19 +170,22 @@ const Expenses = () => {
         try {
             // Call backend OCR endpoint
             const response = await fetch(
-                import.meta.env.VITE_API_URL?.replace('?action=', '?action=scanReceipt') ||
-                'https://script.google.com/macros/s/REDACTED_SECRET_2/exec?action=scanReceipt',
+                import.meta.env.VITE_API_URL ||
+                'https://script.google.com/macros/s/REDACTED_SECRET_7/exec',
                 {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image: receiptImage })
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
+                        action: 'SCAN_RECEIPT',
+                        image: receiptImage
+                    })
                 }
             );
 
             const result = await response.json();
 
-            if (result.error) {
-                setScanError(result.error);
+            if (result.error || !result.success) {
+                setScanError(result.error || 'Failed to scan receipt');
                 return;
             }
 
@@ -202,7 +205,7 @@ const Expenses = () => {
                 // setReceiptImage(null); // Removed as per instruction
 
                 // Show success message
-                alert(`✓ Receipt scanned!\nStore: ${result.extracted.store}\nAmount: RM ${result.extracted.amount}`);
+                alert(`✓ Receipt scanned!\nStore: ${result.extracted.store || 'N/A'}\nAmount: RM ${result.extracted.amount || 'N/A'}`);
             }
 
         } catch (error) {

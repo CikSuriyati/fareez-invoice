@@ -577,6 +577,10 @@ function doPost(e) {
       SpreadsheetApp.flush();
       return jsonResponse({ result: "success", type: "expense" });
     }
+    
+    if (requestData.action === 'SCAN_RECEIPT') {
+      return scanReceipt(requestData.image);
+    }
 
     if (requestData.action === 'SEND_TEST_EMAIL') {
        var res = sendMonthlyReport();
@@ -1984,4 +1988,139 @@ function getOrCreateExpenseReceiptFolder(refNo) {
   }
   
   return refFolder;
+}
+
+// ============================================
+// RECEIPT OCR SCANNING (Google Cloud Vision API)
+// ============================================
+
+function scanReceipt(imageData) {
+  try {
+    // Vision API key should be stored in Script Properties for security
+    var apiKey = 'AIzaSyDaR16bSszztAZfiNuXB6ADahPTBtSmkI8';
+    
+    // Remove data URL prefix if present
+    var base64Image = imageData;
+    if (imageData.indexOf('base64,') !== -1) {
+      base64Image = imageData.split('base64,')[1];
+    }
+    
+    // Prepare Vision API request
+    var visionUrl = 'https://vision.googleapis.com/v1/images:annotate?key=' + apiKey;
+    var payload = {
+      requests: [{
+        image: {
+          content: base64Image
+        },
+        features: [{
+          type: 'TEXT_DETECTION',
+          maxResults: 1
+        }]
+      }]
+    };
+    
+    // Call Vision API
+    var response = UrlFetchApp.fetch(visionUrl, {
+      method: 'POST',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+    
+    var result = JSON.parse(response.getContentText());
+    
+    // Check for errors
+    if (result.error) {
+      return jsonResponse({
+        success: false,
+        error: 'Vision API error: ' + result.error.message
+      });
+    }
+    
+    // Extract text from response
+    var annotations = result.responses[0].textAnnotations;
+    if (!annotations || annotations.length === 0) {
+      return jsonResponse({
+        success: false,
+        error: 'No text detected in image. Please ensure receipt is clear and well-lit.'
+      });
+    }
+    
+    var fullText = annotations[0].description;
+    
+    // Parse receipt data
+    var extracted = parseReceiptText(fullText);
+    
+    return jsonResponse({
+      success: true,
+      extracted: extracted,
+      rawText: fullText
+    });
+    
+  } catch (e) {
+    return jsonResponse({
+      success: false,
+      error: 'Scan failed: ' + e.toString()
+    });
+  }
+}
+
+function parseReceiptText(text) {
+  var lines = text.split('\n');
+  var result = {
+    amount: null,
+    store: null,
+    refNo: null
+  };
+  
+  // Try to find store name (usually in first few lines)
+  for (var i = 0; i < Math.min(5, lines.length); i++) {
+    var line = lines[i].trim();
+    // Skip if line looks like address or phone
+    if (line.length > 5 && line.length < 50 && 
+        !line.match(/\d{5,}/) && // No long numbers
+        !line.match(/Tel|Phone|Fax/i)) {
+      result.store = line;
+      break;
+    }
+  }
+  
+  // Find amounts (look for RM or numbers with decimal points)
+  var amounts = [];
+  var amountPattern = /(?:RM\s*)?(\d{1,6}\.?\d{0,2})/gi;
+  
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    // Look for total/amount keywords
+    if (line.match(/total|amount|bayaran|jumlah/i)) {
+      var matches = line.match(amountPattern);
+      if (matches) {
+        for (var j = 0; j < matches.length; j++) {
+          var num = parseFloat(matches[j].replace(/RM\s*/i, ''));
+          if (!isNaN(num) && num > 0) {
+            amounts.push(num);
+          }
+        }
+      }
+    }
+  }
+  
+  // Use the largest amount found
+  if (amounts.length > 0) {
+    result.amount = Math.max.apply(null, amounts);
+  }
+  
+  // Try to find receipt/invoice number
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    if (line.match(/no\.|#|inv|receipt/i)) {
+      var numMatch = line.match(/[A-Z0-9]{5,}/);
+      if (numMatch) {
+        result.refNo = numMatch[0];
+        break;
+      }
+    }
+  }
+  
+  return result;
 }
