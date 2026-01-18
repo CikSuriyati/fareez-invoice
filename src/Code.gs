@@ -704,6 +704,9 @@ function doPost(e) {
       // Update status in sheet
       projectSheet.getRange(projectRow, 13).setValue(newStatus); // Col M: Status
       
+      // Flush changes to ensure they're committed
+      SpreadsheetApp.flush();
+      
       // Determine if we should generate a document
       var shouldGenerateDoc = (newStatus === 'PARTIAL' || newStatus === 'PAID');
       
