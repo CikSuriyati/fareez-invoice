@@ -538,10 +538,13 @@ function doPost(e) {
       var receiptData = requestData.receiptData || null;
       var receiptFileName = requestData.receiptFileName || '';
       var receiptMimeType = requestData.receiptMimeType || '';
+      var existingReceiptUrl = requestData.existingReceiptUrl || null;
       
-      // Upload receipt if provided
+      // Upload receipt if provided, or use existing URL
       var receiptUrl = '';
-      if (receiptData) {
+      if (existingReceiptUrl) {
+        receiptUrl = existingReceiptUrl;
+      } else if (receiptData) {
         var uploadResult = uploadExpenseReceipt(exp.refNo, receiptData, receiptFileName, receiptMimeType);
         if (uploadResult.error) {
           return jsonResponse({ result: "error", error: uploadResult.error });
@@ -2051,9 +2054,36 @@ function scanReceipt(imageData) {
     // Parse receipt data
     var extracted = parseReceiptText(fullText);
     
+    // Save the scanned receipt image to Drive
+    var receiptUrl = null;
+    try {
+      // Determine folder name (use refNo if found, otherwise use timestamp)
+      var folderName = extracted.refNo || 'SCAN_' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmmss');
+      
+      // Decode base64 and create blob (assume JPEG image from camera/upload)
+      var blob = Utilities.newBlob(Utilities.base64Decode(base64Image), 'image/jpeg', 'scanned_receipt.jpg');
+      
+      // Get or create expense receipt folder
+      var expenseFolder = getOrCreateExpenseReceiptFolder(folderName);
+      
+      // Generate filename
+      var timestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyyMMddHHmmss');
+      var fileName = 'SCANNED_' + timestamp + '.jpg';
+      
+      // Save file
+      var file = expenseFolder.createFile(blob);
+      file.setName(fileName);
+      receiptUrl = file.getUrl();
+      
+    } catch (saveError) {
+      Logger.log('Failed to save scanned receipt: ' + saveError.toString());
+      // Continue even if save fails - OCR data is more important
+    }
+    
     return jsonResponse({
       success: true,
       extracted: extracted,
+      receiptUrl: receiptUrl,
       rawText: fullText
     });
     

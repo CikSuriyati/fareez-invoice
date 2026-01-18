@@ -27,6 +27,7 @@ const Expenses = () => {
     // Receipt File Upload (separate from OCR scanner)
     const [receiptFile, setReceiptFile] = useState(null);
     const [receiptFilePreview, setReceiptFilePreview] = useState(null);
+    const [scannedReceiptUrl, setScannedReceiptUrl] = useState(null); // URL from OCR scan
     const receiptUploadRef = useRef(null);
 
     // Form Stats
@@ -118,16 +119,20 @@ const Expenses = () => {
                 });
             }
 
-            const success = await saveExpense(payload, receiptData);
+            // Pass existing URL if available and no new file selected
+            const existingUrl = !receiptFile && scannedReceiptUrl ? scannedReceiptUrl : null;
+
+            const success = await saveExpense(payload, receiptData, existingUrl);
             if (success) {
                 alert("Expense Saved!");
                 setShowForm(false);
                 setFormData({
                     projectId: '', refNo: '', store: '', desc: '', qty: 1, unitPrice: 0, category: 'Material'
                 });
-                // Clear receipt file
+                // Clear receipt file and scanned URL
                 setReceiptFile(null);
                 setReceiptFilePreview(null);
+                setScannedReceiptUrl(null);
                 setTimeout(loadData, 2000); // Reload everything
             } else {
                 alert("Failed to save expense.");
@@ -199,6 +204,13 @@ const Expenses = () => {
                     desc: result.extracted.store ? `Receipt from ${result.extracted.store}` : prev.desc
                 }));
 
+                // Store scanned receipt URL
+                if (result.receiptUrl) {
+                    setScannedReceiptUrl(result.receiptUrl);
+                    // Also show preview in the file upload section
+                    setReceiptFilePreview(receiptImage);
+                }
+
                 // Keep scanner open, open form for editing
                 // setShowReceiptScanner(false); // Removed as per instruction
                 setShowForm(true);
@@ -260,6 +272,7 @@ const Expenses = () => {
     const handleRemoveReceiptFile = () => {
         setReceiptFile(null);
         setReceiptFilePreview(null);
+        setScannedReceiptUrl(null);
         if (receiptUploadRef.current) {
             receiptUploadRef.current.value = '';
         }

@@ -77,14 +77,18 @@ export const fetchExpenses = async (period = 'MONTH') => {
     }
 };
 
-export const saveExpense = async (expenseData, receiptData = null) => {
+export const saveExpense = async (expenseData, receiptData = null, existingReceiptUrl = null) => {
     const payload = {
         action: 'SAVE_EXPENSE',
         expense: expenseData
     };
 
-    // Add receipt data if provided
-    if (receiptData) {
+    // Add existing receipt URL if provided (from scanner)
+    if (existingReceiptUrl) {
+        payload.existingReceiptUrl = existingReceiptUrl;
+    }
+    // OR add new receipt data if provided (from upload)
+    else if (receiptData) {
         payload.receiptData = receiptData.data;
         payload.receiptFileName = receiptData.fileName;
         payload.receiptMimeType = receiptData.mimeType;
