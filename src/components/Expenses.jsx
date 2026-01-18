@@ -482,7 +482,7 @@ const Expenses = () => {
                                 <div>
                                     <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
                                     <select name="category" value={formData.category} onChange={handleInputChange} className="w-full border p-2 rounded text-sm">
-                                        {['Material', 'Salary', 'Transport', 'Utility', 'Marketing', 'Asset', 'Other'].map(c => <option key={c} value={c}>{c}</option>)}
+                                        {['Material', 'Salary', 'Transport', 'Utility', 'Marketing', 'Asset', 'Inventory', 'Other'].map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                 </div>
                                 <div>
