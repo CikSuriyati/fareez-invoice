@@ -182,7 +182,8 @@ const Expenses = () => {
                     headers: { 'Content-Type': 'text/plain' },
                     body: JSON.stringify({
                         action: 'SCAN_RECEIPT',
-                        image: receiptImage
+                        image: receiptImage,
+                        apiKey: import.meta.env.VITE_VISION_API_KEY // Pass API key from .env
                     })
                 }
             );
