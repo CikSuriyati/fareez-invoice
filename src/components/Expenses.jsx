@@ -24,10 +24,9 @@ const Expenses = () => {
     const [scanError, setScanError] = useState('');
     const fileInputRef = useRef(null);
 
-    // Receipt File Upload (separate from OCR scanner)
+    // Receipt File Upload
     const [receiptFile, setReceiptFile] = useState(null);
     const [receiptFilePreview, setReceiptFilePreview] = useState(null);
-    const [scannedReceiptUrl, setScannedReceiptUrl] = useState(null); // URL from OCR scan
     const receiptUploadRef = useRef(null);
 
     // Form Stats
@@ -89,6 +88,19 @@ const Expenses = () => {
         }));
     };
 
+    // Helper: Convert data URL to File object
+    const dataURLToFile = (dataURL, filename) => {
+        const arr = dataURL.split(',');
+        const mime = arr[0].match(/:(.*?);/)[1];
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        return new File([u8arr], filename, { type: mime });
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSaving(true);
@@ -119,20 +131,16 @@ const Expenses = () => {
                 });
             }
 
-            // Pass existing URL if available and no new file selected
-            const existingUrl = !receiptFile && scannedReceiptUrl ? scannedReceiptUrl : null;
-
-            const success = await saveExpense(payload, receiptData, existingUrl);
+            const success = await saveExpense(payload, receiptData, null);
             if (success) {
                 alert("Expense Saved!");
                 setShowForm(false);
                 setFormData({
                     projectId: '', refNo: '', store: '', desc: '', qty: 1, unitPrice: 0, category: 'Material'
                 });
-                // Clear receipt file and scanned URL
+                // Clear receipt file
                 setReceiptFile(null);
                 setReceiptFilePreview(null);
-                setScannedReceiptUrl(null);
                 setTimeout(loadData, 2000); // Reload everything
             } else {
                 alert("Failed to save expense.");
@@ -208,20 +216,18 @@ const Expenses = () => {
                     desc: result.extracted.store ? `Receipt from ${result.extracted.store}` : prev.desc
                 }));
 
-                // Store scanned receipt URL
-                if (result.receiptUrl) {
-                    setScannedReceiptUrl(result.receiptUrl);
-                    // Also show preview in the file upload section
-                    setReceiptFilePreview(receiptImage);
-                }
+                // Convert scanned image to file object for later upload
+                // This will be uploaded when user clicks "Save Record"
+                const imageFile = dataURLToFile(receiptImage, 'scanned_receipt.jpg');
+                setReceiptFile(imageFile);
+                setReceiptFilePreview(receiptImage);
 
-                // Keep scanner open, open form for editing
-                // setShowReceiptScanner(false); // Removed as per instruction
+                // Close scanner, open form for user to review/edit
+                setShowReceiptScanner(false);
                 setShowForm(true);
-                // setReceiptImage(null); // Removed as per instruction
 
                 // Show success message
-                alert(`✓ Receipt scanned!\nStore: ${result.extracted.store || 'N/A'}\nAmount: RM ${result.extracted.amount || 'N/A'}`);
+                alert(`✓ Receipt scanned!\nStore: ${result.extracted.store || 'N/A'}\nAmount: RM ${result.extracted.amount || 'N/A'}\n\nPlease review and click Save.`);
             }
 
         } catch (error) {
@@ -276,7 +282,6 @@ const Expenses = () => {
     const handleRemoveReceiptFile = () => {
         setReceiptFile(null);
         setReceiptFilePreview(null);
-        setScannedReceiptUrl(null);
         if (receiptUploadRef.current) {
             receiptUploadRef.current.value = '';
         }
