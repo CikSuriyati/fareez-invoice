@@ -526,7 +526,7 @@ const QuickUpdate = () => {
                         {/* Save Button */}
                         <button
                             onClick={handleStatusUpdate}
-                            disabled={isUpdating || selectedStatus === project.status}
+                            disabled={isUpdating || (!selectedFile && selectedStatus === project.status)}
                             className="w-full bg-green-600 text-white py-4 rounded-lg font-bold text-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             {isUpdating ? (
