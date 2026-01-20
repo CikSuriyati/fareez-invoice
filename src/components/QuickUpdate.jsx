@@ -114,11 +114,34 @@ const QuickUpdate = () => {
         setSelectedFile(file);
         setError('');
 
-        // Create preview for images
+        // Create preview for images and auto-scan
         if (file.type.startsWith('image/')) {
             const reader = new FileReader();
-            reader.onloadend = () => {
-                setFilePreview(reader.result);
+            reader.onloadend = async () => {
+                const preview = reader.result;
+                setFilePreview(preview);
+
+                // Auto-scan the receipt after preview is ready
+                setIsScanning(true);
+                try {
+                    const base64 = preview.split(',')[1];
+                    const apiKey = import.meta.env.VITE_VISION_API_KEY;
+
+                    const result = await scanReceiptAPI(base64, apiKey);
+
+                    if (result.success && result.extracted) {
+                        if (result.extracted.amount) {
+                            setPaidAmount(result.extracted.amount.toString());
+                            setSuccessMessage("✨ Amount auto-detected: RM " + result.extracted.amount);
+                            setTimeout(() => setSuccessMessage(''), 3000);
+                        }
+                    }
+                } catch (e) {
+                    console.error("Auto-scan failed", e);
+                    // Silent fail - user can still manually enter amount
+                } finally {
+                    setIsScanning(false);
+                }
             };
             reader.readAsDataURL(file);
         } else {
@@ -163,6 +186,18 @@ const QuickUpdate = () => {
 
     const handleStatusUpdate = async () => {
         if (!project || !selectedStatus) return;
+
+        // Validate that payment amount is provided for PARTIAL/PAID status
+        if ((selectedStatus === 'PARTIAL' || selectedStatus === 'PAID')) {
+            if (!paidAmount || parseFloat(paidAmount) <= 0) {
+                setError('Please enter a valid paid amount for payment status updates.');
+                return;
+            }
+            if (!selectedFile) {
+                setError('Please upload a payment receipt.');
+                return;
+            }
+        }
 
         setIsUpdating(true);
         setError('');
