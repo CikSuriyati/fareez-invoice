@@ -251,7 +251,7 @@ const QuickUpdate = () => {
             if (response.fileUrl) {
                 setGeneratedDoc({
                     url: response.fileUrl,
-                    type: response.message.includes('Invoice') ? 'Invoice' : 'Receipt'
+                    type: response.message.toLowerCase().includes('invoice') ? 'Invoice' : 'Receipt'
                 });
             }
 
