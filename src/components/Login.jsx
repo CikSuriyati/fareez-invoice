@@ -37,7 +37,7 @@ function Login({ onLoginSuccess }) {
         <div className="login-overlay">
             <div className="login-card">
                 <div className="logo-section">
-                    <div className="text-logo">FF</div>
+                    <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '64px', fontWeight: 'bold', color: '#1A237E', marginBottom: '0.5rem' }}>FF</div>
                     <h1>Fareez Invoice System</h1>
                 </div>
 
