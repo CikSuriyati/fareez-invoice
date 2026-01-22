@@ -268,3 +268,23 @@ export const fetchProjects = async () => {
         return [];
     }
 };
+
+export const fetchProjectDocuments = async (projectId) => {
+    try {
+        const response = await fetch(`${API_URL}?action=getProjectDocs&id=${projectId}`);
+        return await response.json();
+    } catch (e) {
+        console.error("Failed to fetch project documents:", e);
+        return { error: e.message };
+    }
+};
+
+export const fetchFileData = async (fileId) => {
+    try {
+        const response = await fetch(`${API_URL}?action=getFileData&fileId=${fileId}`);
+        return await response.json();
+    } catch (e) {
+        console.error("Failed to fetch file data:", e);
+        return { error: e.message };
+    }
+};

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Check, Clock, DollarSign, Loader, ChevronDown, Upload, X, FileText, Image, Camera } from 'lucide-react';
-import { fetchProjectById, updateProjectStatus, fetchProjects, scanReceiptAPI } from '../services/sheetApi';
+import { Search, Check, Clock, DollarSign, Loader, ChevronDown, Upload, X, FileText, Image, Camera, Share2, Download, ExternalLink } from 'lucide-react';
+import { fetchProjectById, updateProjectStatus, fetchProjects, scanReceiptAPI, fetchProjectDocuments, fetchFileData } from '../services/sheetApi';
 
 const QuickUpdate = () => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -11,6 +11,10 @@ const QuickUpdate = () => {
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
     const [generatedDoc, setGeneratedDoc] = useState(null); // { url, type }
+    const [pdfData, setPdfData] = useState(null); // { base64, fileName }
+    const [archivedDocs, setArchivedDocs] = useState([]);
+    const [isLoadingDocs, setIsLoadingDocs] = useState(false);
+    const [isSharingDoc, setIsSharingDoc] = useState(null);
 
     // Dropdown States
     const [projectsList, setProjectsList] = useState([]);
@@ -78,6 +82,7 @@ const QuickUpdate = () => {
         setProject(null);
         setSuccessMessage('');
         setGeneratedDoc(null);
+        setPdfData(null);
 
         try {
             const data = await fetchProjectById(idToSearch.trim());
@@ -87,6 +92,7 @@ const QuickUpdate = () => {
             } else {
                 setProject(data);
                 setSelectedStatus(data.status || 'UNPAID');
+                loadArchivedDocs(idToSearch.trim());
             }
         } catch (e) {
             setError('Failed to search. Please try again.');
@@ -205,6 +211,7 @@ const QuickUpdate = () => {
         setError('');
         setSuccessMessage('');
         setGeneratedDoc(null);
+        setPdfData(null);
 
         try {
             let receiptData = null;
@@ -255,6 +262,14 @@ const QuickUpdate = () => {
                 });
             }
 
+            // Capture PDF Base64 for native sharing
+            if (response.pdfBase64) {
+                setPdfData({
+                    base64: response.pdfBase64,
+                    fileName: response.pdfFileName
+                });
+            }
+
             // Update local state
             setProject({
                 ...project,
@@ -289,7 +304,7 @@ const QuickUpdate = () => {
         }
     };
 
-    const handleWhatsAppShare = () => {
+    const handleWhatsAppShare = async () => {
         if (!project || !generatedDoc) return;
 
         const phone = project.project.phone || '';
@@ -306,11 +321,99 @@ const QuickUpdate = () => {
             formatPhone = '+' + formatPhone;
         }
 
-        const message = `Hi ${project.project.customer}, here is your ${generatedDoc.type} for ${project.project.id}: ${generatedDoc.url}`;
-        const whatsappUrl = `https://wa.me/${formatPhone}?text=${encodeURIComponent(message)}`;
+        const message = `Hi ${project.project.customer}, here is your ${generatedDoc.type} for ${project.project.id}`;
 
-        console.log('Opening WhatsApp:', whatsappUrl);
+        // Try Native Share first (Send as Document)
+        if (navigator.share && pdfData) {
+            try {
+                // Convert base64 to blob
+                const byteCharacters = atob(pdfData.base64);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const file = new File([byteArray], pdfData.fileName, { type: 'application/pdf' });
+
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: `${generatedDoc.type} ${project.project.id}`,
+                        text: message
+                    });
+                    return; // Successfully shared via native share
+                }
+            } catch (err) {
+                console.error('Error sharing file:', err);
+            }
+        }
+
+        // Fallback to WhatsApp Link (Send as Link)
+        const whatsappUrl = `https://wa.me/${formatPhone}?text=${encodeURIComponent(message + ': ' + generatedDoc.url)}`;
+
+        console.log('Opening WhatsApp Link Fallback:', whatsappUrl);
         window.open(whatsappUrl, '_blank');
+    };
+
+    const loadArchivedDocs = async (projectId) => {
+        setIsLoadingDocs(true);
+        try {
+            const result = await fetchProjectDocuments(projectId);
+            if (result.success) {
+                setArchivedDocs(result.documents || []);
+            }
+        } catch (e) {
+            console.error("Failed to load archived documents", e);
+        } finally {
+            setIsLoadingDocs(false);
+        }
+    };
+
+    const handleShareDoc = async (doc) => {
+        setIsSharingDoc(doc.id);
+        try {
+            const result = await fetchFileData(doc.id);
+            if (!result.success) throw new Error(result.error);
+
+            const { base64, fileName, mimeType } = result;
+            const message = `Hi ${project.project.customer}, here is your ${doc.type} for ${project.project.id}`;
+
+            if (navigator.share) {
+                try {
+                    const byteCharacters = atob(base64);
+                    const byteNumbers = new Array(byteCharacters.length);
+                    for (let i = 0; i < byteCharacters.length; i++) {
+                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    }
+                    const byteArray = new Uint8Array(byteNumbers);
+                    const file = new File([byteArray], fileName, { type: mimeType });
+
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({
+                            files: [file],
+                            title: fileName,
+                            text: message
+                        });
+                        return;
+                    }
+                } catch (err) {
+                    console.error('Error sharing file:', err);
+                }
+            }
+
+            const phone = project.project.phone || '';
+            const cleanPhone = String(phone).replace(/\D/g, '');
+            let formatPhone = cleanPhone;
+            if (cleanPhone.startsWith('0')) formatPhone = '60' + cleanPhone.substring(1);
+            if (!formatPhone.startsWith('+')) formatPhone = '+' + formatPhone;
+
+            const whatsappUrl = `https://wa.me/${formatPhone}?text=${encodeURIComponent(message + ': ' + doc.url)}`;
+            window.open(whatsappUrl, '_blank');
+        } catch (e) {
+            alert("Failed to share document: " + e.message);
+        } finally {
+            setIsSharingDoc(null);
+        }
     };
 
     return (
@@ -437,25 +540,23 @@ const QuickUpdate = () => {
                     {/* Status Update Options */}
                     <div className="p-4">
                         <div className="text-sm font-medium text-gray-700 mb-3">Update Status To:</div>
-                        <div className="space-y-2 mb-4">
+                        <div className="grid grid-cols-3 gap-2 mb-4">
                             {['UNPAID', 'PARTIAL', 'PAID'].map((status) => (
                                 <button
                                     key={status}
                                     onClick={() => setSelectedStatus(status)}
-                                    className={`w-full py-3 px-4 rounded-lg font-medium border-2 transition-all ${selectedStatus === status
+                                    className={`w-full py-2 px-1 rounded-lg font-medium border-2 transition-all text-xs flex flex-col items-center justify-center gap-1 min-h-[80px] ${selectedStatus === status
                                         ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
                                         : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400'
                                         } ${status === project.status ? 'opacity-50' : ''}`}
                                 >
-                                    <div className="flex items-center justify-between">
-                                        <span>{status}</span>
-                                        {status === project.status && (
-                                            <span className="text-xs bg-gray-200 px-2 py-1 rounded">Current</span>
-                                        )}
-                                        {selectedStatus === status && status !== project.status && (
-                                            <Check size={18} />
-                                        )}
-                                    </div>
+                                    <span className="font-bold">{status}</span>
+                                    {status === project.status && (
+                                        <span className="text-[10px] bg-gray-200 px-1.5 py-0.5 rounded">Current</span>
+                                    )}
+                                    {selectedStatus === status && status !== project.status && (
+                                        <Check size={16} className="mt-1" />
+                                    )}
                                 </button>
                             ))}
                         </div>
@@ -615,6 +716,71 @@ const QuickUpdate = () => {
                                 )}
                             </div>
                         )}
+
+                        {/* Document Archive Section */}
+                        <div className="mt-8 border-t pt-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                    <FileText className="text-indigo-600" size={20} />
+                                    Document Archive
+                                </h3>
+                                {isLoadingDocs && <Loader className="animate-spin text-indigo-600" size={18} />}
+                            </div>
+
+                            {archivedDocs.length > 0 ? (
+                                <div className="space-y-3">
+                                    {archivedDocs.map((doc) => (
+                                        <div key={doc.id} className="bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-center justify-between group hover:border-indigo-300 transition-colors">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`p-2 rounded-lg ${doc.type === 'Invoice' ? 'bg-blue-100 text-blue-700' :
+                                                    doc.type === 'Receipt' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
+                                                    }`}>
+                                                    <FileText size={20} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-gray-900 leading-tight">
+                                                        {doc.name}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500">
+                                                        {doc.date} • {doc.type}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <a
+                                                    href={doc.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-white rounded-full transition-all"
+                                                    title="View Document"
+                                                >
+                                                    <ExternalLink size={18} />
+                                                </a>
+                                                <button
+                                                    onClick={() => handleShareDoc(doc)}
+                                                    disabled={isSharingDoc === doc.id}
+                                                    className={`p-2 rounded-full transition-all ${isSharingDoc === doc.id
+                                                        ? 'bg-gray-100 text-gray-400'
+                                                        : 'text-gray-400 hover:text-green-600 hover:bg-white shadow-sm'
+                                                        }`}
+                                                    title="Send to WhatsApp"
+                                                >
+                                                    {isSharingDoc === doc.id ? (
+                                                        <Loader className="animate-spin" size={18} />
+                                                    ) : (
+                                                        <Share2 size={18} />
+                                                    )}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : !isLoadingDocs && (
+                                <div className="text-center py-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                                    <p className="text-sm text-gray-500">No documents found for this project</p>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
