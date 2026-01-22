@@ -271,7 +271,7 @@ const QuickUpdate = () => {
             setFilePreview(null);
             setPaidAmount('');
 
-            setTimeout(() => setSuccessMessage(''), 3000);
+            // setTimeout(() => setSuccessMessage(''), 3000); // Removed so user has time to click WhatsApp button
         } catch (e) {
             setError('Failed to update status. Please try again.');
             console.error(e);
