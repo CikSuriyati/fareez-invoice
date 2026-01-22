@@ -227,12 +227,21 @@ const QuickUpdate = () => {
             // Include payment amount if present
             const amount = paidAmount ? parseFloat(paidAmount) : null;
 
-            await updateProjectStatus(
+            const response = await updateProjectStatus(
                 project.project.id,
                 selectedStatus,
                 receiptData,
                 amount
             );
+
+            // Log response for debugging
+            console.log('=== UPDATE_STATUS RESPONSE ===', response);
+
+            if (response && response.error) {
+                setError('Failed to update: ' + response.error);
+                return;
+            }
+
             setSuccessMessage(`✓ Status updated to ${selectedStatus}`);
 
             // Update local state

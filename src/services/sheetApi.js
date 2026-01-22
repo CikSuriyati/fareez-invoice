@@ -1,5 +1,9 @@
-// Replace this with your generated Web App URL after deployment
-const API_URL = import.meta.env.VITE_API_URL || "https://script.google.com/macros/s/REDACTED_SECRET_7/exec";
+// API URL must be configured via VITE_API_URL environment variable
+const API_URL = import.meta.env.VITE_API_URL;
+
+if (!API_URL) {
+    throw new Error("VITE_API_URL environment variable is not set. Please configure your .env file.");
+}
 
 // Helper for Robust POST (Direct Blob to avoid CORS Preflight)
 const postData = async (data) => {

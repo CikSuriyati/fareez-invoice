@@ -9,7 +9,11 @@ function Login({ onLoginSuccess }) {
 
         // Try to access the API - backend will check email
         try {
-            const baseUrl = (import.meta.env.VITE_API_URL || 'https://script.google.com/macros/s/REDACTED_SECRET_7/exec').split('?')[0];
+            const apiUrl = import.meta.env.VITE_API_URL;
+            if (!apiUrl) {
+                throw new Error("VITE_API_URL is not configured");
+            }
+            const baseUrl = apiUrl.split('?')[0];
             const response = await fetch(`${baseUrl}?action=getDashboardStats&period=MONTH`);
 
             const result = await response.json();
