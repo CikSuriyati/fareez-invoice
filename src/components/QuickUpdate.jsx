@@ -293,8 +293,8 @@ const QuickUpdate = () => {
         if (!project || !generatedDoc) return;
 
         const phone = project.project.phone || '';
-        // Remove non-digit chars
-        const cleanPhone = phone.replace(/\D/g, '');
+        // Ensure phone is a string and remove non-digit chars
+        const cleanPhone = String(phone).replace(/\D/g, '');
 
         // Format Phone (Assuming MY context +60 if missing)
         let formatPhone = cleanPhone;
