@@ -301,10 +301,15 @@ const QuickUpdate = () => {
         if (cleanPhone.startsWith('0')) {
             formatPhone = '60' + cleanPhone.substring(1);
         }
+        // Add '+' prefix if not already present
+        if (!formatPhone.startsWith('+')) {
+            formatPhone = '+' + formatPhone;
+        }
 
         const message = `Hi ${project.project.customer}, here is your ${generatedDoc.type} for ${project.project.id}: ${generatedDoc.url}`;
         const whatsappUrl = `https://wa.me/${formatPhone}?text=${encodeURIComponent(message)}`;
 
+        console.log('Opening WhatsApp:', whatsappUrl);
         window.open(whatsappUrl, '_blank');
     };
 
@@ -396,37 +401,6 @@ const QuickUpdate = () => {
                 </div>
             )}
 
-            {/* Success Message & Actions */}
-            {successMessage && (
-                <div className="bg-green-50 border border-green-200 rounded-lg mb-4 p-4">
-                    <div className="flex items-center gap-2 text-green-700 mb-2">
-                        <Check size={20} />
-                        <span className="font-medium">{successMessage}</span>
-                    </div>
-
-                    {generatedDoc && (
-                        <button
-                            onClick={handleWhatsAppShare}
-                            className="mt-2 w-full bg-[#25D366] text-white py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                width="20"
-                                height="20"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                fill="none"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className="css-i6dzq1"
-                            >
-                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-                            </svg>
-                            Send generated {generatedDoc.type} to WhatsApp
-                        </button>
-                    )}
-                </div>
-            )}
 
             {/* Project Details & Status Update */}
             {project && (
@@ -604,6 +578,43 @@ const QuickUpdate = () => {
                                 </>
                             )}
                         </button>
+
+                        {/* Success Message & Actions */}
+                        {successMessage && (
+                            <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4">
+                                <div className="flex items-center gap-2 text-green-700 mb-2">
+                                    <Check size={20} />
+                                    <span className="font-medium">{successMessage}</span>
+                                </div>
+
+                                {generatedDoc && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleWhatsAppShare();
+                                        }}
+                                        className="mt-2 w-full bg-[#25D366] text-white py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-sm"
+                                    >
+                                        <svg
+                                            viewBox="0 0 24 24"
+                                            width="20"
+                                            height="20"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            fill="none"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            className="css-i6dzq1"
+                                        >
+                                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                                        </svg>
+                                        Send {generatedDoc.type} to WhatsApp
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
