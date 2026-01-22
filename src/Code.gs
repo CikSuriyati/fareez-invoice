@@ -2308,26 +2308,36 @@ function getCustomers() {
 function getProjectDocuments(projectId) {
   try {
     var parentFolder = getOrCreateFolder(FOLDER_NAME);
-    var searchId = String(projectId).trim().toUpperCase();
+    // Strip prefix (JOB-, HM-, etc.) to match across different doc types (INV-, QTN-, RCT-)
+    var searchIdSuffix = String(projectId).replace(/^[A-Z]+-/, "").toUpperCase(); 
     var documents = [];
     
+    Logger.log("--- STARTING DOC SEARCH ---");
+    Logger.log("Original ID: " + projectId);
+    Logger.log("Search Suffix: " + searchIdSuffix);
+    Logger.log("Parent Folder: " + parentFolder.getName() + " (" + parentFolder.getId() + ")");
+
     // Scan all level subfolders (Year folders)
     var yearFolders = parentFolder.getFolders();
     while (yearFolders.hasNext()) {
       var yearFolder = yearFolders.next();
+      Logger.log("Checking Year Folder: " + yearFolder.getName());
       
       // Look into subfolders (Types: Quotation, Invoice, Receipt)
       var typeFolders = yearFolder.getFolders();
       while (typeFolders.hasNext()) {
         var typeFolder = typeFolders.next();
         var typeName = typeFolder.getName();
+        Logger.log("  Scanning Subfolder: " + typeName);
         
         var files = typeFolder.getFiles();
         while (files.hasNext()) {
           var file = files.next();
           var fileName = file.getName();
           
-          if (fileName.toUpperCase().includes(searchId)) {
+          // Match using the suffix (e.g., "2026-01-001")
+          if (fileName.toUpperCase().includes(searchIdSuffix)) {
+             Logger.log("    ✓ FOUND: " + fileName);
              documents.push({
                id: file.getId(),
                name: fileName,
@@ -2339,6 +2349,7 @@ function getProjectDocuments(projectId) {
         }
       }
     }
+    Logger.log("--- SEARCH COMPLETE: Found " + documents.length + " docs ---");
     
     // Sort by date descending
     documents.sort(function(a, b) {
