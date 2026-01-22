@@ -10,6 +10,7 @@ const QuickUpdate = () => {
     const [selectedStatus, setSelectedStatus] = useState('');
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
+    const [generatedDoc, setGeneratedDoc] = useState(null); // { url, type }
 
     // Dropdown States
     const [projectsList, setProjectsList] = useState([]);
@@ -76,6 +77,7 @@ const QuickUpdate = () => {
         setError('');
         setProject(null);
         setSuccessMessage('');
+        setGeneratedDoc(null);
 
         try {
             const data = await fetchProjectById(idToSearch.trim());
@@ -202,6 +204,7 @@ const QuickUpdate = () => {
         setIsUpdating(true);
         setError('');
         setSuccessMessage('');
+        setGeneratedDoc(null);
 
         try {
             let receiptData = null;
@@ -244,6 +247,14 @@ const QuickUpdate = () => {
 
             setSuccessMessage(`✓ Status updated to ${selectedStatus}`);
 
+            // Capture generated document if available
+            if (response.fileUrl) {
+                setGeneratedDoc({
+                    url: response.fileUrl,
+                    type: response.message.includes('Invoice') ? 'Invoice' : 'Receipt'
+                });
+            }
+
             // Update local state
             setProject({
                 ...project,
@@ -276,6 +287,25 @@ const QuickUpdate = () => {
             case 'UNPAID': return 'bg-red-100 text-red-800 border-red-300';
             default: return 'bg-gray-100 text-gray-800 border-gray-300';
         }
+    };
+
+    const handleWhatsAppShare = () => {
+        if (!project || !generatedDoc) return;
+
+        const phone = project.project.phone || '';
+        // Remove non-digit chars
+        const cleanPhone = phone.replace(/\D/g, '');
+
+        // Format Phone (Assuming MY context +60 if missing)
+        let formatPhone = cleanPhone;
+        if (cleanPhone.startsWith('0')) {
+            formatPhone = '60' + cleanPhone.substring(1);
+        }
+
+        const message = `Hi ${project.project.customer}, here is your ${generatedDoc.type} for ${project.project.id}: ${generatedDoc.url}`;
+        const whatsappUrl = `https://wa.me/${formatPhone}?text=${encodeURIComponent(message)}`;
+
+        window.open(whatsappUrl, '_blank');
     };
 
     return (
@@ -366,11 +396,35 @@ const QuickUpdate = () => {
                 </div>
             )}
 
-            {/* Success Message */}
+            {/* Success Message & Actions */}
             {successMessage && (
-                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4 flex items-center gap-2">
-                    <Check size={20} />
-                    {successMessage}
+                <div className="bg-green-50 border border-green-200 rounded-lg mb-4 p-4">
+                    <div className="flex items-center gap-2 text-green-700 mb-2">
+                        <Check size={20} />
+                        <span className="font-medium">{successMessage}</span>
+                    </div>
+
+                    {generatedDoc && (
+                        <button
+                            onClick={handleWhatsAppShare}
+                            className="mt-2 w-full bg-[#25D366] text-white py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                width="20"
+                                height="20"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                fill="none"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="css-i6dzq1"
+                            >
+                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                            </svg>
+                            Send generated {generatedDoc.type} to WhatsApp
+                        </button>
+                    )}
                 </div>
             )}
 
