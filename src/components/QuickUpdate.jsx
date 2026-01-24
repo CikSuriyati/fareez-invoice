@@ -15,6 +15,7 @@ const QuickUpdate = () => {
     const [archivedDocs, setArchivedDocs] = useState([]);
     const [isLoadingDocs, setIsLoadingDocs] = useState(false);
     const [isSharingDoc, setIsSharingDoc] = useState(null);
+    const [docDiagnostics, setDocDiagnostics] = useState(null);
 
     // Dropdown States
     const [projectsList, setProjectsList] = useState([]);
@@ -308,59 +309,64 @@ const QuickUpdate = () => {
         if (!project || !generatedDoc) return;
 
         const phone = project.project.phone || '';
-        // Ensure phone is a string and remove non-digit chars
         const cleanPhone = String(phone).replace(/\D/g, '');
 
-        // Format Phone (Assuming MY context +60 if missing)
         let formatPhone = cleanPhone;
         if (cleanPhone.startsWith('0')) {
             formatPhone = '60' + cleanPhone.substring(1);
         }
-        // Add '+' prefix if not already present
-        if (!formatPhone.startsWith('+')) {
-            formatPhone = '+' + formatPhone;
-        }
+        // Remove '+' if present for wa.me links
+        formatPhone = formatPhone.replace('+', '');
 
         const message = `Hi ${project.project.customer}, here is your ${generatedDoc.type} for ${project.project.id}`;
 
         // Try Native Share first (Send as Document)
-        if (navigator.share && pdfData) {
+        if (navigator.share && pdfData && pdfData.base64) {
             try {
-                // Convert base64 to blob
-                const byteCharacters = atob(pdfData.base64);
+                // Clean base64 just in case
+                const cleanBase64 = pdfData.base64.replace(/\s/g, '');
+                const byteCharacters = atob(cleanBase64);
                 const byteNumbers = new Array(byteCharacters.length);
                 for (let i = 0; i < byteCharacters.length; i++) {
                     byteNumbers[i] = byteCharacters.charCodeAt(i);
                 }
                 const byteArray = new Uint8Array(byteNumbers);
-                const file = new File([byteArray], pdfData.fileName, { type: 'application/pdf' });
+                const file = new File([byteArray], pdfData.fileName || 'document.pdf', { type: 'application/pdf' });
 
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    await navigator.share({
-                        files: [file],
-                        title: `${generatedDoc.type} ${project.project.id}`,
-                        text: message
-                    });
-                    return; // Successfully shared via native share
+                // Check if we can share files
+                const shareData = {
+                    files: [file],
+                    title: `${generatedDoc.type} ${project.project.id}`,
+                    text: message
+                };
+
+                if (navigator.canShare && navigator.canShare(shareData)) {
+                    await navigator.share(shareData);
+                    return; // Success
+                } else {
+                    console.warn('File sharing not supported by browser/OS');
                 }
             } catch (err) {
                 console.error('Error sharing file:', err);
+                // Don't alert here, just fallback to link
             }
         }
 
         // Fallback to WhatsApp Link (Send as Link)
         const whatsappUrl = `https://wa.me/${formatPhone}?text=${encodeURIComponent(message + ': ' + generatedDoc.url)}`;
-
-        console.log('Opening WhatsApp Link Fallback:', whatsappUrl);
         window.open(whatsappUrl, '_blank');
     };
 
     const loadArchivedDocs = async (projectId) => {
         setIsLoadingDocs(true);
+        setDocDiagnostics(null);
         try {
             const result = await fetchProjectDocuments(projectId);
-            if (result.success) {
+            if (result.result === "success") {
                 setArchivedDocs(result.documents || []);
+                if (result.diagnostics) {
+                    setDocDiagnostics(result.diagnostics);
+                }
             }
         } catch (e) {
             console.error("Failed to load archived documents", e);
@@ -371,42 +377,52 @@ const QuickUpdate = () => {
 
     const handleShareDoc = async (doc) => {
         setIsSharingDoc(doc.id);
+        const message = `Hi ${project.project.customer}, here is your ${doc.type} for ${project.project.id}`;
+
+        const phone = project.project.phone || '';
+        const cleanPhone = String(phone).replace(/\D/g, '');
+        let formatPhone = cleanPhone;
+        if (cleanPhone.startsWith('0')) formatPhone = '60' + cleanPhone.substring(1);
+        formatPhone = formatPhone.replace('+', '');
+
         try {
             const result = await fetchFileData(doc.id);
-            if (!result.success) throw new Error(result.error);
+            if (result.result !== "success" || !result.base64) {
+                throw new Error(result.error || "Failed to fetch file data from server");
+            }
 
             const { base64, fileName, mimeType } = result;
-            const message = `Hi ${project.project.customer}, here is your ${doc.type} for ${project.project.id}`;
 
             if (navigator.share) {
                 try {
-                    const byteCharacters = atob(base64);
+                    const cleanBase64 = base64.replace(/\s/g, '');
+                    const byteCharacters = atob(cleanBase64);
                     const byteNumbers = new Array(byteCharacters.length);
                     for (let i = 0; i < byteCharacters.length; i++) {
                         byteNumbers[i] = byteCharacters.charCodeAt(i);
                     }
                     const byteArray = new Uint8Array(byteNumbers);
-                    const file = new File([byteArray], fileName, { type: mimeType });
+                    const file = new File([byteArray], fileName || 'document.pdf', { type: mimeType || 'application/pdf' });
 
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        await navigator.share({
-                            files: [file],
-                            title: fileName,
-                            text: message
-                        });
+                    const shareData = {
+                        files: [file],
+                        title: fileName,
+                        text: message
+                    };
+
+                    if (navigator.canShare && navigator.canShare(shareData)) {
+                        await navigator.share(shareData);
                         return;
                     }
                 } catch (err) {
-                    console.error('Error sharing file:', err);
+                    console.error('Native share error:', err);
+                    if (err.name === 'NotAllowedError') {
+                        console.warn('Share blocked (likely iOS async restriction). Falling back to link.');
+                    }
                 }
             }
 
-            const phone = project.project.phone || '';
-            const cleanPhone = String(phone).replace(/\D/g, '');
-            let formatPhone = cleanPhone;
-            if (cleanPhone.startsWith('0')) formatPhone = '60' + cleanPhone.substring(1);
-            if (!formatPhone.startsWith('+')) formatPhone = '+' + formatPhone;
-
+            // Fallback
             const whatsappUrl = `https://wa.me/${formatPhone}?text=${encodeURIComponent(message + ': ' + doc.url)}`;
             window.open(whatsappUrl, '_blank');
         } catch (e) {
@@ -689,30 +705,43 @@ const QuickUpdate = () => {
                                 </div>
 
                                 {generatedDoc && (
-                                    <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            handleWhatsAppShare();
-                                        }}
-                                        className="mt-2 w-full bg-[#25D366] text-white py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-sm"
-                                    >
-                                        <svg
-                                            viewBox="0 0 24 24"
-                                            width="20"
-                                            height="20"
-                                            stroke="currentColor"
-                                            strokeWidth="2"
-                                            fill="none"
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            className="css-i6dzq1"
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                handleWhatsAppShare();
+                                            }}
+                                            className="mt-2 w-full bg-[#25D366] text-white py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 hover:opacity-90 transition-opacity shadow-sm"
                                         >
-                                            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-                                        </svg>
-                                        Send {generatedDoc.type} to WhatsApp
-                                    </button>
+                                            <svg
+                                                viewBox="0 0 24 24"
+                                                width="20"
+                                                height="20"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                fill="none"
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                className="css-i6dzq1"
+                                            >
+                                                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                                            </svg>
+                                            Send {generatedDoc.type} to WhatsApp
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(generatedDoc.url);
+                                                alert("Link copied to clipboard!");
+                                            }}
+                                            className="mt-2 w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-medium flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors border border-gray-300"
+                                        >
+                                            <ExternalLink size={16} />
+                                            Copy Link Instead
+                                        </button>
+                                    </>
                                 )}
                             </div>
                         )}
@@ -777,7 +806,7 @@ const QuickUpdate = () => {
                                 </div>
                             ) : !isLoadingDocs && (
                                 <div className="text-center py-6 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-                                    <p className="text-sm text-gray-500">No documents found for this project</p>
+                                    <p className="text-sm text-gray-400 mb-2">No documents found for this project</p>
                                 </div>
                             )}
                         </div>

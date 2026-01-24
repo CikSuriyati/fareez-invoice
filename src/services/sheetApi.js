@@ -30,7 +30,7 @@ export const saveInvoiceToSheet = async (invoiceData) => {
     // Google Apps Script requires 'no-cors' for simple POSTs usually, or specialized handling.
     // Ideally we use text/plain to avoid preflight CORS issues with simple GAS triggers.
 
-    const response = await fetch(API_URL, {
+    await fetch(API_URL, {
         method: "POST",
         mode: "no-cors",
         headers: {
@@ -118,7 +118,7 @@ export const saveExpense = async (expenseData, receiptData = null, existingRecei
     }
 
     // Using no-cors, so we can't read response, but we fire and forget
-    const response = await fetch(API_URL, {
+    await fetch(API_URL, {
         method: "POST",
         mode: "no-cors",
         headers: {
