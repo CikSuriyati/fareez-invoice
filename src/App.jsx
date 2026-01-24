@@ -302,7 +302,7 @@ function App() {
     <div className="h-full min-h-screen bg-slate-50 flex flex-col font-jakarta pb-20 md:pb-0">
       {/* Top Navigation - Integrated Template Style */}
       {view !== 'PRINTABLE_REPORT' && (
-        <nav className="bg-indigo-900 shadow-lg sticky top-0 z-50">
+        <nav className="bg-indigo-900 shadow-lg sticky top-0 z-50 no-print">
           <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <div
@@ -381,7 +381,7 @@ function App() {
 
       {/* Mobile Bottom Navigation - Large Tap Targets */}
       {view !== 'PRINTABLE_REPORT' && (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 px-2 pb-safe-area shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 px-2 pb-safe-area shadow-[0_-4px_10px_rgba(0,0,0,0.05)] no-print">
           <div className="flex items-center justify-around h-20">
             <button
               onClick={() => setView('DASHBOARD')}
@@ -477,32 +477,24 @@ function App() {
       {/* Print-specific overrides handling */}
       <style>{`
         @media print {
-            /* Hide non-print elements */
             .no-print { display: none !important; }
-
-            /* Reset Global Layout */
-            body, html, #root { 
+            
+            body, html { 
               background: white !important; 
-              width: 100% !important;
-              height: auto !important; 
               margin: 0 !important;
               padding: 0 !important;
-              overflow: visible !important;
             }
 
-            /* Disable Flexbox on Main Root causing cutoff */
-            .flex, .flex-col, .min-h-screen { 
-              display: block !important;
-              height: auto !important;
-              min-height: 0 !important;
+            /* Ensure the preview container parent doesn't clip or hide */
+            .w-full, .lg:col-span-12, .grid { 
+              display: block !important; 
             }
 
-            /* Ensure Main Content fills page */
-            main {
-                display: block !important;
-                width: 100% !important;
-                margin: 0 !important;
-                padding: 0 !important;
+            /* Avoid tailwind flex/grid interference on parents during print */
+            main { 
+              padding: 0 !important;
+              margin: 0 !important;
+              max-width: none !important;
             }
         }
       `}</style>

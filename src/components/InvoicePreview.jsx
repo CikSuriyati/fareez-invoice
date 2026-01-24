@@ -103,29 +103,29 @@ const InvoicePreview = ({ data }) => {
         </table>
 
         {/* Totals Section - Aligned to Table Columns */}
-        <div className="mt-2 space-y-1 font-jakarta text-[11px] w-full">
+        <div className="mt-4 space-y-1 font-jakarta text-[11px] w-full">
           {/* Subtotal Row */}
           <div className="grid grid-cols-[85%_15%] w-full">
-            <div className="text-right pr-4 text-slate-400 font-medium border-b border-slate-100 pb-0.5">Subtotal</div>
+            <div className="text-right pr-4 text-slate-500 font-medium border-b border-slate-100 pb-0.5">Subtotal</div>
             <div className="text-right font-bold text-slate-900 border-b border-slate-100 pb-0.5 px-2">RM {formatCurrency(totals.total)}</div>
           </div>
 
           {/* Discount Row */}
           {Number(totals.discount) > 0 && (
-            <div className="grid grid-cols-[85%_15%] w-full">
-              <div className="text-right pr-4 text-slate-400 font-medium border-b border-slate-100 pb-0.5">Discount</div>
-              <div className="text-right font-bold text-slate-900 border-b border-slate-100 pb-0.5 px-2">- RM {formatCurrency(totals.discount)}</div>
+            <div className="grid grid-cols-[85%_15%] w-full text-red-600">
+              <div className="text-right pr-4 font-medium border-b border-slate-100 pb-0.5">Discount</div>
+              <div className="text-right font-bold border-b border-slate-100 pb-0.5 px-2">- RM {formatCurrency(totals.discount)}</div>
             </div>
           )}
 
-          {/* Total Amount Row - Localized Highlight + Perfect Alignment */}
+          {/* Total Amount Row - Neutral Highlight */}
           <div className="grid grid-cols-[85%_15%] w-full my-1">
             <div className="flex justify-end">
-              <div className="bg-slate-50 border-t-2 border-slate-900 px-4 py-1.5 font-bold text-slate-900 uppercase tracking-tighter rounded-bl-md">
+              <div className="bg-slate-900 border-t-2 border-slate-900 px-4 py-1.5 font-bold text-white uppercase tracking-tighter rounded-bl-md">
                 Total Amount
               </div>
             </div>
-            <div className="bg-slate-50 border-t-2 border-slate-900 px-2 py-1.5 text-right font-black text-indigo-700 rounded-br-md">
+            <div className="bg-slate-50 border-t-2 border-slate-900 px-2 py-1.5 text-right font-black text-slate-900 rounded-br-md">
               RM {formatCurrency(Number(totals.total) - Number(totals.discount || 0))}
             </div>
           </div>
@@ -133,20 +133,20 @@ const InvoicePreview = ({ data }) => {
           {/* Deposit Row */}
           {type !== 'QUOTATION' && (
             <div className="grid grid-cols-[85%_15%] w-full">
-              <div className="text-right pr-4 font-bold text-emerald-700 py-1 uppercase">{type === 'RECEIPT' ? 'Total Paid' : 'Deposit Paid'}</div>
-              <div className="text-right font-bold text-emerald-700 py-1 px-2">RM {formatCurrency(totals.deposit)}</div>
+              <div className="text-right pr-4 font-bold text-emerald-700 py-1.5 uppercase">{type === 'RECEIPT' ? 'Total Paid' : 'Deposit Paid'}</div>
+              <div className="text-right font-bold text-emerald-700 py-1.5 px-2 bg-emerald-50/50 rounded-md border border-emerald-100/50">RM {formatCurrency(totals.deposit)}</div>
             </div>
           )}
 
-          {/* Balance Due Row - Localized Highlight + Perfect Alignment */}
+          {/* Balance Due Row - Strong Accented Style (Cell-only highlight) */}
           {type === 'INVOICE' && (
             <div className="grid grid-cols-[85%_15%] w-full mt-1">
-              <div className="flex justify-end">
-                <div className="bg-indigo-50 border border-indigo-100 border-r-0 px-4 py-2 font-black text-indigo-900 uppercase italic rounded-l-lg shadow-sm">
+              <div className="flex justify-end items-center">
+                <div className="bg-blue-600 px-4 py-2 font-black text-white uppercase italic rounded-l-lg shadow-sm">
                   Balance Due
                 </div>
               </div>
-              <div className="bg-indigo-50/80 border border-indigo-100 border-l-0 px-2 py-2 text-right font-black text-indigo-700 rounded-r-lg shadow-sm backdrop-blur-sm">
+              <div className="bg-blue-50 border-2 border-blue-600 border-l-0 px-2 py-2 text-right font-black text-blue-700 rounded-r-lg shadow-sm flex items-center justify-end">
                 RM {formatCurrency(totals.balance)}
               </div>
             </div>
@@ -156,7 +156,7 @@ const InvoicePreview = ({ data }) => {
           {type === 'QUOTATION' && (
             <div className="grid grid-cols-[85%_15%] w-full italic text-[10px] text-slate-500 pt-1">
               <div className="text-right pr-4">Deposit Required (50%)</div>
-              <div className="text-right font-bold px-2 uppercase tracking-tight">RM {formatCurrency((Number(totals.total) - Number(totals.discount || 0)) * 0.5)}</div>
+              <div className="text-right font-bold px-2 uppercase tracking-tight text-slate-900">RM {formatCurrency((Number(totals.total) - Number(totals.discount || 0)) * 0.5)}</div>
             </div>
           )}
         </div>
