@@ -63,25 +63,23 @@ const InvoicePreview = ({ data }) => {
           </div>
         </div>
 
+        {/* Items Table - Explicit Alignment */}
         <table className="invoice-table">
           <thead>
             <tr>
               <th width="15%">Room / Area</th>
               <th width="20%">Installation Type</th>
               <th width="30%">Description</th>
-              <th width="12%">Unit Price (RM)</th>
-              <th width="8%">Qty</th>
-              <th width="15%">Total (RM)</th>
+              <th width="12%" className="text-right">Price (RM)</th>
+              <th width="8%" className="text-center">Qty</th>
+              <th width="15%" className="text-right">Total (RM)</th>
             </tr>
           </thead>
           <tbody>
             {items.map((item, index) => {
-              // Simple logic to show Room/Type only if different from previous
-              // In a real app, you might want to pre-process this list to handle grouping more robustly
               const prevItem = items[index - 1] || {};
               const showRoom = item.room !== prevItem.room;
               const showType = item.type !== prevItem.type || showRoom;
-
               const itemTotal = Number(item.unitPrice || 0) * Number(item.qty || 0);
 
               return (
@@ -89,14 +87,12 @@ const InvoicePreview = ({ data }) => {
                   <td>{showRoom ? <strong>{item.room}</strong> : ''}</td>
                   <td>{showType ? item.type : ''}</td>
                   <td>{item.desc}</td>
-                  <td>{formatCurrency(item.unitPrice)}</td>
-                  <td>{item.qty}</td>
-                  <td><strong>{formatCurrency(itemTotal)}</strong></td>
+                  <td className="text-right">{formatCurrency(item.unitPrice)}</td>
+                  <td className="text-center">{item.qty}</td>
+                  <td className="text-right font-bold">{formatCurrency(itemTotal)}</td>
                 </tr>
               );
             })}
-
-            {/* Fill empty rows */}
             {Array.from({ length: emptyRows }).map((_, i) => (
               <tr key={`empty-${i}`} style={{ height: '22px' }}>
                 <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
@@ -106,67 +102,64 @@ const InvoicePreview = ({ data }) => {
           </tbody>
         </table>
 
-        <div className="total-section">
-          {type === 'QUOTATION' ? (
-            <>
-              {Number(totals.discount) > 0 ? (
-                <>
-                  <div>
-                    <span className="total-label">SUB-TOTAL:</span>
-                    <span className="total-amount">RM {formatCurrency(totals.total)}</span>
-                  </div>
-                  <div style={{ marginTop: '5px', color: '#d32f2f' }}>
-                    <span className="total-label">LESS DISCOUNT:</span>
-                    <span><strong>- RM {formatCurrency(totals.discount)}</strong></span>
-                  </div>
-                  <div style={{ marginTop: '8px' }}>
-                    <span className="total-label">TOTAL AMOUNT:</span>
-                    <span className="total-amount">RM {formatCurrency(totals.total - totals.discount)}</span>
-                  </div>
-                </>
-              ) : (
-                <div>
-                  <span className="total-label">TOTAL AMOUNT:</span>
-                  <span className="total-amount">RM {formatCurrency(totals.total)}</span>
-                </div>
-              )}
-              <div style={{ color: '#666', marginTop: '10px' }}>
-                <span className="total-label">Deposit Required (50%):</span>
-                <span><strong>RM {formatCurrency((totals.total - (totals.discount || 0)) * 0.5)}</strong></span>
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <span className="total-label">TOTAL AMOUNT:</span>
-                <span className="total-amount">RM {formatCurrency(totals.total)}</span>
-              </div>
+        {/* Totals Section - Aligned to Table Columns */}
+        <div className="mt-2 space-y-1 font-jakarta text-[11px] w-full">
+          {/* Subtotal Row */}
+          <div className="grid grid-cols-[85%_15%] w-full">
+            <div className="text-right pr-4 text-slate-400 font-medium border-b border-slate-100 pb-0.5">Subtotal</div>
+            <div className="text-right font-bold text-slate-900 border-b border-slate-100 pb-0.5 px-2">RM {formatCurrency(totals.total)}</div>
+          </div>
 
-              {(type === 'INVOICE' || type === 'RECEIPT') && (
-                <>
-                  {Number(totals.discount) > 0 && (
-                    <div style={{ marginTop: '5px', color: '#d32f2f' }}>
-                      <span className="total-label">LESS DISCOUNT:</span>
-                      <span><strong>- RM {formatCurrency(totals.discount)}</strong></span>
-                    </div>
-                  )}
-                  <div style={{ marginTop: '5px' }}>
-                    <span className="total-label">{type === 'RECEIPT' ? 'TOTAL PAID:' : 'DEPOSIT PAID:'}</span>
-                    <span><strong>RM {formatCurrency(totals.deposit)}</strong></span>
-                  </div>
-                  {type !== 'RECEIPT' && (
-                    <div style={{ marginTop: '8px' }}>
-                      <span className="total-label">BALANCE DUE:</span>
-                      <span className="total-amount">RM {formatCurrency(totals.balance)}</span>
-                    </div>
-                  )}
-                </>
-              )}
-            </>
+          {/* Discount Row */}
+          {Number(totals.discount) > 0 && (
+            <div className="grid grid-cols-[85%_15%] w-full">
+              <div className="text-right pr-4 text-slate-400 font-medium border-b border-slate-100 pb-0.5">Discount</div>
+              <div className="text-right font-bold text-slate-900 border-b border-slate-100 pb-0.5 px-2">- RM {formatCurrency(totals.discount)}</div>
+            </div>
+          )}
+
+          {/* Total Amount Row - Localized Highlight + Perfect Alignment */}
+          <div className="grid grid-cols-[85%_15%] w-full my-1">
+            <div className="flex justify-end">
+              <div className="bg-slate-50 border-t-2 border-slate-900 px-4 py-1.5 font-bold text-slate-900 uppercase tracking-tighter rounded-bl-md">
+                Total Amount
+              </div>
+            </div>
+            <div className="bg-slate-50 border-t-2 border-slate-900 px-2 py-1.5 text-right font-black text-indigo-700 rounded-br-md">
+              RM {formatCurrency(Number(totals.total) - Number(totals.discount || 0))}
+            </div>
+          </div>
+
+          {/* Deposit Row */}
+          {type !== 'QUOTATION' && (
+            <div className="grid grid-cols-[85%_15%] w-full">
+              <div className="text-right pr-4 font-bold text-emerald-700 py-1 uppercase">{type === 'RECEIPT' ? 'Total Paid' : 'Deposit Paid'}</div>
+              <div className="text-right font-bold text-emerald-700 py-1 px-2">RM {formatCurrency(totals.deposit)}</div>
+            </div>
+          )}
+
+          {/* Balance Due Row - Localized Highlight + Perfect Alignment */}
+          {type === 'INVOICE' && (
+            <div className="grid grid-cols-[85%_15%] w-full mt-1">
+              <div className="flex justify-end">
+                <div className="bg-indigo-50 border border-indigo-100 border-r-0 px-4 py-2 font-black text-indigo-900 uppercase italic rounded-l-lg shadow-sm">
+                  Balance Due
+                </div>
+              </div>
+              <div className="bg-indigo-50/80 border border-indigo-100 border-l-0 px-2 py-2 text-right font-black text-indigo-700 rounded-r-lg shadow-sm backdrop-blur-sm">
+                RM {formatCurrency(totals.balance)}
+              </div>
+            </div>
+          )}
+
+          {/* Quotation Deposit notice */}
+          {type === 'QUOTATION' && (
+            <div className="grid grid-cols-[85%_15%] w-full italic text-[10px] text-slate-500 pt-1">
+              <div className="text-right pr-4">Deposit Required (50%)</div>
+              <div className="text-right font-bold px-2 uppercase tracking-tight">RM {formatCurrency((Number(totals.total) - Number(totals.discount || 0)) * 0.5)}</div>
+            </div>
           )}
         </div>
-
-
 
         {/* Payment & Legal Section */}
         <div style={{ marginTop: '30px', borderTop: '2px solid #ddd', paddingTop: '15px' }}>

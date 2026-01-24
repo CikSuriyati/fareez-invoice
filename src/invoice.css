@@ -1,189 +1,191 @@
 /* Invoice Preview Styles - Ported from User Template */
 .invoice-preview-container {
-    font-family: 'Helvetica', 'Arial', sans-serif;
-    color: #333;
-    font-size: 11px;
-    background: white;
-    width: 210mm; /* A4 Width */
-    min-height: 297mm; /* A4 Height */
-    margin: 0 auto;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-    position: relative;
-    padding-bottom: 50px; /* Space for footer */
+  font-family: 'Helvetica', 'Arial', sans-serif;
+  color: #333;
+  font-size: 11px;
+  background: white;
+  width: 210mm;
+  /* A4 Width */
+  min-height: 297mm;
+  /* A4 Height */
+  margin: 0 auto;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  position: relative;
+  padding-bottom: 50px;
+  /* Space for footer */
+}
+
+.invoice-header {
+  background: #1A237E;
+  color: white;
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.logo-container {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.text-logo {
+  font-family: 'Times New Roman', serif;
+  font-size: 48px;
+  color: white;
+  margin: 0;
+}
+
+.company-info {
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.invoice-title {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.invoice-body {
+  padding: 20px;
+}
+
+.info-section {
+  display: flex;
+  margin-bottom: 20px;
+  justify-content: space-between;
+}
+
+.client-box {
+  width: 60%;
+}
+
+.meta-box {
+  width: 40%;
+  text-align: right;
+}
+
+.invoice-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.invoice-table th {
+  background: #1A237E;
+  color: white;
+  padding: 6px 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+  text-align: left;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.invoice-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #ddd;
+  font-size: 10px;
+}
+
+/* Zebra striping */
+.invoice-table tr:nth-child(even) {
+  background: #f2f2f2;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+
+.footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #f9f9f9;
+  padding: 10px 20px;
+  font-size: 9px;
+  text-align: center;
+  border-top: 2px solid #000;
+}
+
+.stamp {
+  position: absolute;
+  top: 140px;
+  /* Adjusted from fixed position to relative to container */
+  right: 40px;
+  font-size: 40px;
+  font-weight: 900;
+  opacity: 0.15;
+  transform: rotate(-20deg);
+  padding: 10px 20px;
+  border: 4px solid;
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.paid {
+  color: green;
+  border-color: green;
+}
+
+.partial {
+  color: orange;
+  border-color: orange;
+}
+
+.unpaid {
+  color: red;
+  border-color: red;
+}
+
+@media print {
+
+  /* Hide everything by default */
+  body * {
+    visibility: hidden;
   }
-  
-  .invoice-header {
-    background: #1A237E;
-    color: white;
-    padding: 20px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+
+  /* Show only the invoice container and its children */
+  .invoice-preview-container,
+  .invoice-preview-container * {
+    visibility: visible;
   }
-  
-  .logo-container {
-    display: flex;
-    align-items: center;
-    gap: 15px;
+
+  /* Force background colors and images to print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
   }
-  
-  .text-logo {
-    font-family: 'Times New Roman', serif;
-    font-size: 48px;
-    color: white;
-    margin: 0;
+
+  /* Reset scaling and positioning */
+  .invoice-scale-wrapper {
+    transform: none !important;
   }
-  
-  .company-info {
-    font-size: 11px;
-    line-height: 1.3;
-  }
-  
-  .invoice-title {
-    margin: 0;
-    font-size: 24px;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-  }
-  
-  .invoice-body {
-    padding: 20px;
-  }
-  
-  .info-section {
-    display: flex;
-    margin-bottom: 20px;
-    justify-content: space-between;
-  }
-  
-  .client-box {
-    width: 60%;
-  }
-  
-  .meta-box {
-    width: 40%;
-    text-align: right;
-  }
-  
-  .invoice-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-  }
-  
-  .invoice-table th {
-    background: #1A237E;
-    color: white;
-    padding: 6px 8px;
-    font-size: 10px;
-    text-transform: uppercase;
-    text-align: left;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  
-  .invoice-table td {
-    padding: 6px 8px;
-    border-bottom: 1px solid #ddd;
-    font-size: 10px;
-  }
-  
-  /* Zebra striping */
-  .invoice-table tr:nth-child(even) {
-    background: #f2f2f2;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-  
-  .total-section {
-    margin-top: 20px;
-    text-align: right;
-  }
-  
-  .total-label {
-    font-weight: bold;
-    font-size: 12px;
-    margin-right: 15px;
-  }
-  
-  .total-amount {
-    font-size: 18px;
-    color: #1A237E;
-    font-weight: bold;
-  }
-  
-  .footer {
+
+  .invoice-preview-container {
     position: absolute;
-    bottom: 0;
     left: 0;
-    right: 0;
-    background: #f9f9f9;
-    padding: 10px 20px;
-    font-size: 9px;
-    text-align: center;
-    border-top: 2px solid #000;
+    top: 0;
+    width: 210mm !important;
+    /* Force A4 width */
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: visible !important;
   }
-  
-  .stamp {
-    position: absolute;
-    top: 140px; /* Adjusted from fixed position to relative to container */
-    right: 40px;
-    font-size: 40px;
-    font-weight: 900;
-    opacity: 0.15;
-    transform: rotate(-20deg);
-    padding: 10px 20px;
-    border: 4px solid;
-    border-radius: 8px;
-    pointer-events: none;
-    z-index: 10;
+
+  /* Hide scrollbars and ensure white background */
+  body {
+    overflow: visible !important;
+    background: white !important;
   }
-  
-  .paid { color: green; border-color: green; }
-  .partial { color: orange; border-color: orange; }
-  .unpaid { color: red; border-color: red; }
-  
-  @media print {
-    /* Hide everything by default */
-    body * {
-      visibility: hidden;
-    }
-    
-    /* Show only the invoice container and its children */
-    .invoice-preview-container, .invoice-preview-container * {
-      visibility: visible;
-    }
-
-    /* Force background colors and images to print */
-    * {
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-      color-adjust: exact !important;
-    }
-
-    /* Reset scaling and positioning */
-    .invoice-scale-wrapper {
-        transform: none !important;
-    }
-
-    .invoice-preview-container {
-      position: absolute;
-      left: 0;
-      top: 0;
-      width: 210mm !important; /* Force A4 width */
-      height: auto !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      box-shadow: none !important;
-      border: none !important;
-      overflow: visible !important;
-    }
-    
-    /* Hide scrollbars and ensure white background */
-    body {
-        overflow: visible !important;
-        background: white !important;
-    }
-  }
+}

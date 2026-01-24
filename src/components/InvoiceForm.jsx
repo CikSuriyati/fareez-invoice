@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
-import { Plus, Trash2, Save, Printer, Search } from 'lucide-react';
+import { Plus, Trash2, Save, Printer, Search, ChevronDown } from 'lucide-react';
 import { fetchCustomers } from '../services/sheetApi';
 
 
@@ -112,6 +112,22 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
         }
     }, [currentStatus, currentType, JSON.stringify(currentItems), currentDiscount, setValue]);
 
+    // State for Collapsible Sections (Item-by-item)
+    const [expandedIndices, setExpandedIndices] = useState(new Set([0])); // Start with first item expanded
+    const [isClientExpanded, setIsClientExpanded] = useState(true);
+
+    const toggleItemExpansion = (index) => {
+        setExpandedIndices(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(index)) {
+                newSet.delete(index);
+            } else {
+                newSet.add(index);
+            }
+            return newSet;
+        });
+    };
+
     const { fields, append, remove } = useFieldArray({
         control,
         name: "items"
@@ -163,221 +179,337 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
     }, [JSON.stringify(values), onChange]);
 
     return (
-        <div className="bg-white p-6 shadow-lg rounded-lg border border-gray-200">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800">Invoice Details</h2>
-                <div className="flex gap-2">
-                    <button onClick={onPrint} className="bg-gray-700 text-white px-3 py-1.5 text-xs rounded flex items-center gap-1 hover:bg-gray-800 transition shadow-sm">
-                        <Printer size={14} /> Print
+        <div className="space-y-6">
+            {/* Header with quick actions - hidden on desktop as they are in Nav, but good for mobile/backup */}
+            <div className="md:hidden flex flex-wrap gap-2 mb-4">
+                <button onClick={onPrint} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2">
+                    <Printer size={16} /> Print
+                </button>
+                {onEmail && (
+                    <button
+                        onClick={() => onEmail(watch('project.email'))}
+                        disabled={isSending}
+                        className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        <Plus size={16} className="rotate-45" /> {isSending ? 'Sending...' : 'Email'}
                     </button>
-                    {onEmail && (
-                        <button
-                            onClick={() => onEmail(watch('project.email'))}
-                            disabled={isSending}
-                            className="bg-green-700 text-white px-3 py-1.5 text-xs rounded flex items-center gap-1 hover:bg-green-800 transition disabled:opacity-50 shadow-sm"
-                        >
-                            {isSending ? 'Sending...' : 'Send Email'}
-                        </button>
-                    )}
-                    <button onClick={handleSubmit((formData) => {
-                        // Calculate totals to ensure they are sent to backend
-                        const subtotal = (formData.items || []).reduce((acc, item) => acc + (Number(item.unitPrice || 0) * Number(item.qty || 0)), 0);
-                        const discount = Number(formData.discount) || 0;
-                        const deposit = Number(formData.depositPaid) || 0;
-                        const fullData = {
-                            ...formData,
-                            totals: {
-                                total: subtotal,
-                                discount: discount,
-                                deposit: deposit,
-                                balance: (subtotal - discount) - deposit
-                            }
-                        };
-                        onSave(fullData);
-                    })} disabled={isSaving} className="bg-indigo-700 text-white px-3 py-1.5 text-xs rounded flex items-center gap-1 hover:bg-indigo-800 transition disabled:opacity-50 shadow-sm">
-                        <Save size={14} /> {isSaving ? 'Saving...' : 'Save to Sheet'}
-                    </button>
-                </div>
+                )}
             </div>
 
             <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
-                {/* Document Settings */}
-                <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Document Type</label>
-                        <select {...register("type")} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border">
-                            <option value="INVOICE">Invoice</option>
-                            <option value="RECEIPT">Receipt</option>
-                            <option value="QUOTATION">Quotation</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700">Payment Status</label>
-                        <select {...register("status")} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border">
-                            <option value="PAID">Paid</option>
-                            <option value="PARTIAL">Partially Paid</option>
-                            <option value="UNPAID">Unpaid</option>
-                        </select>
-                    </div>
-                </div>
-
-                {/* Client Info */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="md:col-span-2">
-                        <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Client Information</h3>
-                    </div>
-                    <div>
-                        <label className="block text-xs text-gray-500">Project ID</label>
-                        <div className="flex gap-2">
-                            <input {...register("project.id")} className="w-full border rounded p-1.5" placeholder="Enter ID to search" />
-                            <button type="button" onClick={() => onLoadProject(watch("project.id"))} className="bg-blue-600 text-white p-1.5 rounded hover:bg-blue-700" title="Load Project">
-                                <Search size={16} />
-                            </button>
+                {/* Invoice Details Card */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <Save className="w-5 h-5 text-indigo-600" /> Invoice Details
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">Document Type</label>
+                            <select
+                                {...register("type")}
+                                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                            >
+                                <option value="INVOICE">Invoice</option>
+                                <option value="RECEIPT">Receipt</option>
+                                <option value="QUOTATION">Quotation</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">Payment Status</label>
+                            <select
+                                {...register("status")}
+                                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                            >
+                                <option value="UNPAID">Unpaid</option>
+                                <option value="PAID">Paid</option>
+                                <option value="PARTIAL">Partial</option>
+                            </select>
                         </div>
                     </div>
-                    <div>
-                        <label className="block text-xs text-gray-500">Date</label>
-                        <input type="date" {...register("project.date")} className="w-full border rounded p-1.5" />
-                    </div>
-                    <div className="md:col-span-2 relative">
-                        <label className="block text-xs text-gray-500 mb-1">
-                            Customer Name
-                            {isLoadingCustomers && <span className="ml-2 text-indigo-600 text-xs">(Loading customers...)</span>}
-                        </label>
-                        <input
-                            ref={customerInputRef}
-                            value={watch('project.customer') || ''}
-                            onChange={(e) => handleCustomerSearch(e.target.value)}
-                            onFocus={() => {
-                                // Show suggestions if there are matches when focusing
-                                if (filteredCustomers.length > 0) {
-                                    setShowSuggestions(true);
-                                }
-                            }}
-                            className="w-full border rounded p-1.5"
-                            placeholder="Start typing customer name..."
-                            autoComplete="off"
-                        />
-
-                        {/* Autocomplete Suggestions Dropdown */}
-                        {showSuggestions && filteredCustomers.length > 0 && (
-                            <div
-                                ref={suggestionsRef}
-                                className="absolute z-50 w-full bg-white border border-gray-300 rounded-md shadow-lg mt-1 max-h-60 overflow-y-auto"
-                            >
-                                {filteredCustomers.map((customer, index) => (
-                                    <div
-                                        key={index}
-                                        onClick={() => selectCustomer(customer)}
-                                        className="px-3 py-2 hover:bg-indigo-50 cursor-pointer border-b last:border-b-0"
-                                    >
-                                        <div className="flex justify-between items-start">
-                                            <div className="flex-1">
-                                                <div className="font-medium text-gray-900">{customer.name}</div>
-                                                <div className="text-xs text-gray-600 mt-0.5">
-                                                    {customer.email && <span>{customer.email}</span>}
-                                                    {customer.phone && <span className="ml-2">• {customer.phone}</span>}
-                                                </div>
-                                            </div>
-                                            <div className="ml-2 text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full whitespace-nowrap">
-                                                {customer.projectCount} {customer.projectCount === 1 ? 'project' : 'projects'}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="md:col-span-2">
-                        <label className="block text-xs text-gray-500">Address</label>
-                        <textarea {...register("project.address")} rows={2} className="w-full border rounded p-1.5" placeholder="Full Address" />
-                    </div>
-                    <div>
-                        <label className="block text-xs text-gray-500">Email</label>
-                        <input {...register("project.email")} className="w-full border rounded p-1.5" />
-                    </div>
-                    <div>
-                        <label className="block text-xs text-gray-500">Phone</label>
-                        <input {...register("project.phone")} className="w-full border rounded p-1.5" />
-                    </div>
                 </div>
 
-                {/* Line Items */}
-                <div>
-                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Line Items</h3>
+                {/* Client Information Card */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                    <div
+                        className="flex items-center justify-between cursor-pointer group"
+                        onClick={() => setIsClientExpanded(!isClientExpanded)}
+                    >
+                        <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <Search className="w-5 h-5 text-indigo-600" /> Client Information
+                            {!isClientExpanded && watch('project.customer') && (
+                                <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full ml-2">
+                                    {watch('project.customer')}
+                                </span>
+                            )}
+                        </h3>
+                        <div className={`transform transition-all duration-300 p-1 rounded-lg ${isClientExpanded ? 'rotate-180 bg-indigo-50 text-indigo-600' : 'rotate-0 text-slate-400 group-hover:bg-slate-100'}`}>
+                            <ChevronDown size={20} />
+                        </div>
+                    </div>
 
-                    <div className="space-y-4">
-                        {fields.map((field, index) => (
-                            <div key={field.id} className="border p-3 rounded bg-gray-50 relative">
-                                <button type="button" onClick={() => remove(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700">
-                                    <Trash2 size={16} />
-                                </button>
-
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2 pr-6">
+                    {isClientExpanded && (
+                        <div className="space-y-4 mt-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Project ID</label>
+                                <div className="relative">
                                     <input
-                                        {...register(`items.${index}.room`)}
-                                        list="room-options"
-                                        placeholder="Room/Area"
-                                        className="text-xs border rounded p-1"
+                                        {...register("project.id")}
+                                        type="text"
+                                        placeholder="Search or enter project ID"
+                                        className="w-full pl-4 pr-10 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                                     />
-                                    <input
-                                        {...register(`items.${index}.type`)}
-                                        list="type-options"
-                                        placeholder="Install Type"
-                                        className="text-xs border rounded p-1"
-                                    />
-                                    <input {...register(`items.${index}.brand`)} placeholder="Brand" className="text-xs border rounded p-1" />
-                                    <input {...register(`items.${index}.model`)} placeholder="Model" className="text-xs border rounded p-1" />
-                                </div>
-
-                                <div className="mb-2">
-                                    <input {...register(`items.${index}.desc`)} placeholder="Description" className="w-full text-sm border rounded p-1" />
-                                </div>
-
-                                <div className="grid grid-cols-3 gap-2">
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        {...register(`items.${index}.unitPrice`)}
-                                        placeholder="Unit Price"
-                                        className="text-xs border rounded p-1"
-                                    />
-                                    <input
-                                        type="number"
-                                        {...register(`items.${index}.qty`)}
-                                        placeholder="Qty"
-                                        className="text-xs border rounded p-1"
-                                    />
-                                    <div className="text-xs flex items-center bg-gray-100 px-2 rounded text-gray-600">
-                                        Total: {((watch(`items.${index}.unitPrice`) || 0) * (watch(`items.${index}.qty`) || 0)).toFixed(2)}
-                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => onLoadProject(watch("project.id"))}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition-colors"
+                                    >
+                                        <Search size={18} />
+                                    </button>
                                 </div>
                             </div>
-                        ))}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Date</label>
+                                    <input
+                                        type="date"
+                                        {...register("project.date")}
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    />
+                                </div>
+                                <div className="relative">
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                                        Customer Name {isLoadingCustomers && <span className="text-indigo-500 text-[10px] ml-1">(Loading...)</span>}
+                                    </label>
+                                    <input
+                                        ref={customerInputRef}
+                                        value={watch('project.customer') || ''}
+                                        onChange={(e) => handleCustomerSearch(e.target.value)}
+                                        onFocus={() => filteredCustomers.length > 0 && setShowSuggestions(true)}
+                                        placeholder="Full name"
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                        autoComplete="off"
+                                    />
+                                    {showSuggestions && filteredCustomers.length > 0 && (
+                                        <div
+                                            ref={suggestionsRef}
+                                            className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-xl mt-1 max-h-60 overflow-y-auto"
+                                        >
+                                            {filteredCustomers.map((customer, index) => (
+                                                <div
+                                                    key={index}
+                                                    onClick={() => selectCustomer(customer)}
+                                                    className="px-4 py-3 hover:bg-slate-50 cursor-pointer border-b border-slate-50 last:border-b-0"
+                                                >
+                                                    <div className="font-semibold text-slate-800 text-sm">{customer.name}</div>
+                                                    <div className="text-[10px] text-slate-500 mt-0.5">{customer.phone} • {customer.email}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Address</label>
+                                <textarea
+                                    {...register("project.address")}
+                                    placeholder="Street, City, State, Postal Code"
+                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    rows="3"
+                                ></textarea>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
+                                    <input
+                                        type="email"
+                                        {...register("project.email")}
+                                        placeholder="customer@example.com"
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-2">Phone</label>
+                                    <input
+                                        type="tel"
+                                        {...register("project.phone")}
+                                        placeholder="+60 1X XXXX XXXX"
+                                        className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Line Items Card */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <Plus className="w-5 h-5 text-indigo-600" /> Line Items
+                        <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full ml-2">
+                            {fields.length} {fields.length === 1 ? 'item' : 'items'}
+                        </span>
+                    </h3>
+
+                    <div id="line-items-container" className="space-y-3 mb-4">
+                        {fields.map((field, index) => {
+                            const isExpanded = expandedIndices.has(index);
+                            const itemValues = watch(`items.${index}`);
+                            const itemTotal = (Number(itemValues?.unitPrice || 0) * Number(itemValues?.qty || 0)).toFixed(2);
+
+                            return (
+                                <div key={field.id} className={`line-item rounded-xl border transition-all duration-200 ${isExpanded ? 'bg-slate-50 border-slate-200 p-4' : 'bg-white border-slate-100 p-3 hover:bg-slate-50'}`}>
+                                    {/* Item Header / Summary */}
+                                    <div
+                                        className="flex items-center justify-between cursor-pointer"
+                                        onClick={() => toggleItemExpansion(index)}
+                                    >
+                                        <div className="flex items-center gap-3 overflow-hidden">
+                                            <div className={`p-1 rounded-md transition-colors ${isExpanded ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                <ChevronDown size={14} className={`transform transition-transform ${isExpanded ? 'rotate-180' : 'rotate-0'}`} />
+                                            </div>
+                                            {!isExpanded ? (
+                                                <div className="flex items-center gap-2 text-sm">
+                                                    <span className="font-bold text-slate-700 whitespace-nowrap">{itemValues?.room || 'Untitled Room'}</span>
+                                                    <span className="text-slate-400">•</span>
+                                                    <span className="text-slate-600 truncate max-w-[150px]">{itemValues?.type || 'No Type'}</span>
+                                                    <span className="text-slate-400">•</span>
+                                                    <span className="font-bold text-indigo-600">RM {itemTotal}</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-sm font-bold text-slate-700">Item #{index + 1} Details</span>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); remove(index); }}
+                                                className="text-slate-400 hover:text-red-500 p-1.5 rounded-lg transition-colors"
+                                                title="Remove item"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* Expanded content */}
+                                    {isExpanded && (
+                                        <div className="mt-4 space-y-3 animate-in fade-in slide-in-from-top-1 duration-200">
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <input
+                                                    {...register(`items.${index}.room`)}
+                                                    list="room-options"
+                                                    placeholder="Room/Area"
+                                                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                                                />
+                                                <input
+                                                    {...register(`items.${index}.type`)}
+                                                    list="type-options"
+                                                    placeholder="Installation Type"
+                                                    className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                                                />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <input {...register(`items.${index}.brand`)} placeholder="Brand (Optional)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
+                                                <input {...register(`items.${index}.model`)} placeholder="Model (Optional)" className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white" />
+                                            </div>
+                                            <textarea
+                                                {...register(`items.${index}.desc`)}
+                                                placeholder="Description"
+                                                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                                                rows="1"
+                                            ></textarea>
+                                            <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-100">
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Price</label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        {...register(`items.${index}.unitPrice`)}
+                                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Qty</label>
+                                                    <input
+                                                        type="number"
+                                                        {...register(`items.${index}.qty`)}
+                                                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Total</label>
+                                                    <div className="px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg text-sm font-bold text-indigo-700 h-[38px] flex items-center justify-center">
+                                                        RM {itemTotal}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
-                    <button type="button" onClick={() => append({
-                        room: '', type: '', brand: '', model: '', desc: '',
-                        unitPrice: 0, qty: 1
-                    })} className="mt-2 text-sm text-indigo-600 flex items-center gap-1 hover:text-indigo-800">
+
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const newIndex = fields.length;
+                            append({ room: '', type: '', brand: '', model: '', desc: '', unitPrice: 0, qty: 1 });
+                            toggleItemExpansion(newIndex);
+                        }}
+                        className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 border-2 border-dashed border-indigo-200"
+                    >
                         <Plus size={16} /> Add Item
                     </button>
                 </div>
 
-                {/* Footer Totals */}
-                <div className="bg-gray-50 p-4 rounded text-right space-y-2">
-                    <div>
-                        <label className="text-sm font-bold text-gray-600 mr-2">GLOBAL DISCOUNT (RM):</label>
-                        <input type="number" step="0.01" {...register("discount")} className="border border-red-300 rounded p-1 w-24 text-right text-red-600 font-bold" />
+                {/* Totals Card */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4">Totals</h3>
+                    <div className="space-y-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                            <label className="text-sm font-medium text-slate-600">Subtotal</label>
+                            <span className="text-sm font-semibold text-slate-800">
+                                RM {(values.items || []).reduce((acc, item) => acc + (Number(item.unitPrice || 0) * Number(item.qty || 0)), 0).toFixed(2)}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium text-slate-700">Global Discount (RM)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                {...register("discount")}
+                                placeholder="0.00"
+                                className="w-32 px-4 py-2 border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-indigo-500 font-bold text-red-600"
+                            />
+                        </div>
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                            <span className="text-sm font-medium text-slate-600">Total Amount</span>
+                            <span className="text-lg font-bold text-indigo-600">
+                                RM {Math.max(0, (values.items || []).reduce((acc, item) => acc + (Number(item.unitPrice || 0) * Number(item.qty || 0)), 0) - (Number(values.discount) || 0)).toFixed(2)}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium text-slate-700">Deposit Paid (RM)</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                {...register("depositPaid")}
+                                placeholder="0.00"
+                                className="w-32 px-4 py-2 border border-slate-200 rounded-lg text-sm text-right focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                        </div>
+                        <div className="flex items-center justify-between pt-4 border-t-2 border-indigo-100 bg-indigo-50 -mx-6 px-6 py-4 rounded-b-2xl">
+                            <span className="font-bold text-indigo-900">Balance Due</span>
+                            <span className="text-2xl font-bold text-indigo-600">
+                                RM {Math.max(0, ((values.items || []).reduce((acc, item) => acc + (Number(item.unitPrice || 0) * Number(item.qty || 0)), 0) - (Number(values.discount) || 0)) - (Number(values.depositPaid) || 0)).toFixed(2)}
+                            </span>
+                        </div>
                     </div>
-                    <div>
-                        <label className="text-sm text-gray-600 mr-2">Deposit Paid (RM):</label>
-                        <input type="number" step="0.01" {...register("depositPaid")} className="border rounded p-1 w-24 text-right" />
-                    </div>
-                    {/* Totals are calculated automatically in parent/preview */}
                 </div>
 
-                {/* DATALISTS DEFINITIONS */}
+                {/* Datalists for Autocomplete */}
                 <datalist id="room-options">
                     <option value="Living Room" />
                     <option value="Yard/Outdoor" />
@@ -386,32 +518,18 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
                     <option value="Bedroom 3" />
                     <option value="Toilet 1" />
                     <option value="Toilet 2" />
-                    <option value="Bathroom" />
-                    <option value="Hall" />
-                    <option value="Entrance/Foyer" />
-                    <option value="Dining Area" />
-                    <option value="Balcony" />
                     <option value="Kitchen" />
+                    <option value="Dining Area" />
                 </datalist>
-
                 <datalist id="type-options">
                     <option value="Lighting" />
                     <option value="Fan" />
                     <option value="Water Heater" />
-                    <option value="Door Bell" />
-                    <option value="TV" />
-                    <option value="Curtain/Blind" />
-                    <option value="Shower Curtain" />
-                    <option value="Mirror" />
-                    <option value="Door Lock" />
-                    <option value="Furniture Assembly" />
-                    <option value="Towel Rack" />
-                    <option value="Transportation" />
-                    <option value="Plumbing Minor Fix" />
                     <option value="Installation" />
+                    <option value="Plumbing" />
                 </datalist>
-            </form >
-        </div >
+            </form>
+        </div>
     );
 };
 

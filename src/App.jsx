@@ -10,7 +10,7 @@ import QuickUpdate from './components/QuickUpdate';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { saveInvoiceToSheet, fetchNextId, fetchProjectById, sendInvoiceEmail } from './services/sheetApi';
-import { FileText, LayoutDashboard, ShoppingBag, BarChart, Zap } from 'lucide-react';
+import { FileText, LayoutDashboard, ShoppingBag, BarChart, Zap, Printer } from 'lucide-react';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -300,74 +300,83 @@ function App() {
 
   return (
     <div className="h-full min-h-screen bg-slate-50 flex flex-col font-jakarta pb-20 md:pb-0">
-      {/* Top Header - Professional Business Branding */}
+      {/* Top Navigation - Integrated Template Style */}
       {view !== 'PRINTABLE_REPORT' && (
-        <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <nav className="bg-indigo-900 shadow-lg sticky top-0 z-50">
+          <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
-              {/* Logo/Brand - Original Name Maintained */}
-              <div className="flex items-center cursor-pointer group" onClick={() => setView('DASHBOARD')}>
-                <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md group-hover:bg-indigo-700 transition-colors">
-                  <Zap size={22} fill="currentColor" />
+              <div
+                className="flex items-center cursor-pointer group"
+                onClick={() => setView('DASHBOARD')}
+              >
+                <div className="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center text-white mr-3 shadow-inner group-hover:bg-indigo-400 transition-colors">
+                  <Zap size={18} fill="currentColor" />
                 </div>
-                <div className="ml-3">
-                  <h1 className="text-lg font-bold text-slate-900 leading-none">Fareez Invoice Generator</h1>
-                  <p className="text-[10px] font-bold text-slate-400 tracking-widest mt-1 uppercase">Installation Services</p>
-                </div>
+                <span className="text-white font-bold text-lg tracking-tight">
+                  Fareez Invoice <span className="text-indigo-300 text-xs font-normal ml-1">v3.0</span>
+                </span>
               </div>
 
-              {/* Desktop Menu (md and up) */}
-              <div className="hidden md:flex items-center bg-slate-100 p-1 rounded-xl space-x-1">
-                <button
-                  onClick={() => setView('DASHBOARD')}
-                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'DASHBOARD' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}`}
-                >
-                  Dashboard
-                </button>
-                <button
-                  onClick={gotoNewProject}
-                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'EDITOR' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}`}
-                >
-                  New Project
-                </button>
-                <button
-                  onClick={() => setView('EXPENSES')}
-                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'EXPENSES' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}`}
-                >
-                  Expenses
-                </button>
-                <button
-                  onClick={() => setView('REPORTS')}
-                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'REPORTS' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}`}
-                >
-                  Reports
-                </button>
-                <button
-                  onClick={() => setView('QUICK_UPDATE')}
-                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'QUICK_UPDATE' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}`}
-                >
-                  Quick Update
-                </button>
+              {/* Desktop Menu */}
+              <div className="hidden lg:flex items-center bg-indigo-950/50 p-1 rounded-xl mx-4">
+                {[
+                  { id: 'DASHBOARD', label: 'Dashboard' },
+                  { id: 'EDITOR', label: 'New Project', action: gotoNewProject },
+                  { id: 'EXPENSES', label: 'Expenses' },
+                  { id: 'REPORTS', label: 'Reports' },
+                  { id: 'QUICK_UPDATE', label: 'Update' }
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={item.action || (() => setView(item.id))}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${view === item.id
+                      ? 'bg-indigo-600 text-white shadow-md'
+                      : 'text-indigo-300 hover:text-white hover:bg-white/10'
+                      }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
               </div>
 
-              {/* Right Side Actions */}
-              <div className="flex items-center gap-3">
-                <div className="hidden sm:flex flex-col text-right mr-2">
-                  <span className="text-xs font-bold text-slate-700">{userEmail?.split('@')[0]}</span>
-                  <span className="text-[10px] text-slate-400 font-medium italic">Administrator</span>
-                </div>
+              {/* Action Sidebar / Right Side */}
+              <div className="flex items-center gap-2">
+                {view === 'EDITOR' && (
+                  <div className="hidden sm:flex items-center gap-2 mr-2 border-r border-indigo-800 pr-4">
+                    <button
+                      onClick={handlePrint}
+                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-md"
+                    >
+                      <Printer size={14} /> Print
+                    </button>
+                    <button
+                      onClick={handleSendEmail}
+                      disabled={isSending}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-md disabled:opacity-50"
+                    >
+                      {isSending ? '...' : <><Zap size={14} fill="currentColor" /> Email</>}
+                    </button>
+                    <button
+                      onClick={() => document.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }))}
+                      disabled={isSaving}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-md shadow-indigo-950/20 disabled:opacity-50"
+                    >
+                      {isSaving ? '...' : <><FileText size={14} /> Save</>}
+                    </button>
+                  </div>
+                )}
+
                 <button
                   onClick={handleLogout}
-                  className="bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 p-2.5 rounded-xl transition-all border border-slate-200 hover:border-red-100"
+                  className="bg-indigo-800 hover:bg-red-600 text-indigo-300 hover:text-white p-2 rounded-lg transition-all"
                   title="Logout"
                 >
-                  <span className="hidden sm:inline-block mr-2 text-xs font-bold">Logout</span>
                   🚪
                 </button>
               </div>
             </div>
           </div>
-        </header>
+        </nav>
       )}
 
       {/* Mobile Bottom Navigation - Large Tap Targets */}
@@ -414,7 +423,7 @@ function App() {
       )}
 
       {/* Main Content Area */}
-      <main className={`flex-1 w-full overflow-y-auto ${view === 'PRINTABLE_REPORT' ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8'}`}>
+      <main className={`flex-1 w-full overflow-y-auto ${view === 'PRINTABLE_REPORT' ? '' : 'max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8'}`}>
 
         {view === 'DASHBOARD' && (
           <Dashboard
@@ -437,9 +446,9 @@ function App() {
 
 
         {view === 'EDITOR' && (
-          <div className="flex flex-col lg:flex-row gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* Left: Input Form */}
-            <div className="w-full lg:w-5/12 no-print">
+            <div className="w-full lg:col-span-5 no-print">
               <InvoiceForm
                 defaultValues={initialData}
                 onChange={handleFormChange}
@@ -453,10 +462,11 @@ function App() {
             </div>
 
             {/* Right: Preview (Standard A4) */}
-            <div className="w-full lg:w-7/12 flex justify-center">
-              {/* Scaled wrapper for small screens if needed, otherwise natural size */}
-              <div className="transform scale-90 origin-top lg:scale-100 invoice-scale-wrapper">
-                <InvoicePreview data={invoiceData} />
+            <div className="w-full lg:col-span-7 flex justify-center">
+              <div className="sticky top-24 h-fit w-full flex justify-center">
+                <div className="transform scale-90 sm:scale-95 lg:scale-100 origin-top bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
+                  <InvoicePreview data={invoiceData} />
+                </div>
               </div>
             </div>
           </div>
