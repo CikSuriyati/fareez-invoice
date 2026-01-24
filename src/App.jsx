@@ -310,7 +310,7 @@ function App() {
                 onClick={() => setView('DASHBOARD')}
               >
                 <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-indigo-900 mr-3 shadow-md group-hover:bg-indigo-50 transition-colors border border-indigo-200">
-                  <span style={{ fontFamily: "'Times New Roman', serif" }} className="text-xl font-black italic tracking-tighter">FF</span>
+                  <span style={{ fontFamily: "'Times New Roman', serif" }} className="text-xl font-black tracking-tighter">FF</span>
                 </div>
                 <span className="text-white font-bold text-lg tracking-tight">
                   Fareez Invoice <span className="text-indigo-300 text-xs font-normal ml-1">v3.0</span>
