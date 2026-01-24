@@ -1568,10 +1568,12 @@ function savePDFToDrive(pdfBlob, filename, targetFolder) {
     }
     
     var file = targetFolder.createFile(pdfBlob.setName(versionedName));
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     return file.getUrl();
   } else {
     // Create new file
     var file = targetFolder.createFile(pdfBlob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     return file.getUrl();
   }
 }
@@ -2163,12 +2165,130 @@ function scanReceipt(imageData, providedKey) {
   }
 }
 
+/**
+ * Extract individual line items from receipt text
+ * @param {string} text - Full OCR text from receipt
+ * @returns {Array} Array of items with {description, qty, unitPrice}
+ */
+function extractLineItems(text) {
+  var lines = text.split('\n');
+  var items = [];
+  
+  // Common patterns for line items on receipts:
+  // "2 x Cement Bag @ 12.50"
+  // "Paint Brush     5.00"
+  // "3 Screws RM1.50"
+  // "Item Name    2   @5.00   10.00"
+  
+  // Define exclusion keywords (headers, footers, totals)
+  var excludeKeywords = /total|subtotal|tax|gst|sst|discount|cash|change|balance|tender|payment|paid|thank|you|terima|kasih|tel|phone|fax|date|time|receipt|no\.|bill|invoice|address|email|website|http/i;
+  
+  // Price pattern: matches numbers like 12.50, 1,234.56
+  var pricePattern = /([0-9,]+\.[0-9]{2})/;
+  
+  // Skip first 5 lines (likely store header) and last 10 lines (likely footer/totals)
+  var startIdx = Math.min(5, Math.floor(lines.length * 0.1));
+  var endIdx = Math.max(startIdx + 1, lines.length - 10);
+  
+  for (var i = startIdx; i < endIdx; i++) {
+    var line = lines[i].trim();
+    
+    // Skip empty lines
+    if (!line || line.length < 3) continue;
+    
+    // Skip lines with exclusion keywords
+    if (excludeKeywords.test(line)) continue;
+    
+    // Look for price indicators
+    var priceMatch = line.match(pricePattern);
+    if (!priceMatch) continue;
+    
+    var price = parseFloat(priceMatch[1].replace(/,/g, ''));
+    if (isNaN(price) || price <= 0) continue;
+    
+    // Skip if price is too high (likely a total, not a line item)
+    // This is heuristic - adjust threshold as needed
+    if (price > 999) continue;
+    
+    // Extract quantity if present
+    var qty = 1;
+    var description = line;
+    
+    // Pattern: "2 x Item" or "2x Item" or "2 Item"
+    var qtyPatterns = [
+      /^(\d+)\s*x\s+(.+)/i,  // "2 x ItemName ..."
+      /^(\d+)\s+(.+)/,        // "2 ItemName ..."
+      /(\d+)\s*@/             // "... 2 @ ..."
+    ];
+    
+    for (var p = 0; p < qtyPatterns.length; p++) {
+      var qtyMatch = line.match(qtyPatterns[p]);
+      if (qtyMatch && qtyMatch[1]) {
+        var parsedQty = parseInt(qtyMatch[1]);
+        if (!isNaN(parsedQty) && parsedQty > 0 && parsedQty <= 100) {
+          qty = parsedQty;
+          // Extract description (text before price)
+          if (qtyMatch[2]) {
+            description = qtyMatch[2];
+          }
+          break;
+        }
+      }
+    }
+    
+    // Clean description: remove price and numeric patterns at the end
+    description = description
+      .replace(pricePattern, '')  // Remove price
+      .replace(/\s*@\s*/g, ' ')   // Remove @ symbols
+      .replace(/RM|MYR|\$/gi, '') // Remove currency symbols
+      .replace(/\s{2,}/g, ' ')    // Normalize whitespace
+      .trim();
+    
+    // Skip if description is too short or just numbers
+    if (description.length < 2 || /^\d+$/.test(description)) continue;
+    
+    // Calculate unit price
+    var unitPrice = price;
+    if (qty > 1) {
+      // Check if the price is already a line total or unit price
+      // Heuristic: If dividing by qty gives a "nice" number, it's likely a total
+      var possibleUnitPrice = price / qty;
+      if (possibleUnitPrice > 0.01 && possibleUnitPrice < price) {
+        // Check if result is a round number or has 2 decimals
+        if (possibleUnitPrice.toFixed(2) === possibleUnitPrice.toFixed(2)) {
+          unitPrice = possibleUnitPrice;
+        }
+      }
+    }
+    
+    items.push({
+      description: description,
+      qty: qty,
+      unitPrice: parseFloat(unitPrice.toFixed(2))
+    });
+  }
+  
+  // Remove duplicates (same description)
+  var uniqueItems = [];
+  var seen = {};
+  for (var i = 0; i < items.length; i++) {
+    var key = items[i].description.toLowerCase();
+    if (!seen[key]) {
+      uniqueItems.push(items[i]);
+      seen[key] = true;
+    }
+  }
+  
+  return uniqueItems;
+}
+
 function parseReceiptText(text) {
   var lines = text.split('\n');
   var result = {
     amount: null,
     store: null,
-    refNo: null
+    refNo: null,
+    items: []  // NEW: Array of extracted line items
   };
   
   // Try to find store name (first 5 lines)
@@ -2179,6 +2299,9 @@ function parseReceiptText(text) {
       break;
     }
   }
+  
+  // NEW: Extract line items
+  result.items = extractLineItems(text);
   
   // Improved Amount Extraction
   var possibleAmounts = [];
@@ -2312,43 +2435,42 @@ function getProjectDocuments(projectId) {
     var searchIdSuffix = String(projectId).replace(/^[A-Z]+-/, "").toUpperCase(); 
     var documents = [];
     
-    Logger.log("--- STARTING DOC SEARCH ---");
+    Logger.log("--- STARTING RECURSIVE DOC SEARCH ---");
     Logger.log("Original ID: " + projectId);
     Logger.log("Search Suffix: " + searchIdSuffix);
     Logger.log("Parent Folder: " + parentFolder.getName() + " (" + parentFolder.getId() + ")");
 
-    // Scan all level subfolders (Year folders)
-    var yearFolders = parentFolder.getFolders();
-    while (yearFolders.hasNext()) {
-      var yearFolder = yearFolders.next();
-      Logger.log("Checking Year Folder: " + yearFolder.getName());
+    // Robust Recursive Search
+    function traverse(folder) {
+      Logger.log("Scanning Folder: " + folder.getName());
       
-      // Look into subfolders (Types: Quotation, Invoice, Receipt)
-      var typeFolders = yearFolder.getFolders();
-      while (typeFolders.hasNext()) {
-        var typeFolder = typeFolders.next();
-        var typeName = typeFolder.getName();
-        Logger.log("  Scanning Subfolder: " + typeName);
-        
-        var files = typeFolder.getFiles();
-        while (files.hasNext()) {
-          var file = files.next();
-          var fileName = file.getName();
-          
-          // Match using the suffix (e.g., "2026-01-001")
-          if (fileName.toUpperCase().includes(searchIdSuffix)) {
-             Logger.log("    ✓ FOUND: " + fileName);
-             documents.push({
-               id: file.getId(),
-               name: fileName,
-               type: typeName,
-               url: file.getUrl(),
-               date: dateToStr(file.getDateCreated())
-             });
-          }
+      // 1. Check files in current folder
+      var files = folder.getFiles();
+      while (files.hasNext()) {
+        var file = files.next();
+        var fileName = file.getName();
+        if (fileName.toUpperCase().includes(searchIdSuffix)) {
+           Logger.log("  ✓ FOUND: " + fileName);
+           documents.push({
+             id: file.getId(),
+             name: fileName,
+             type: folder.getName(), // Use folder name as type (e.g. Invoice, Receipt)
+             url: file.getUrl(),
+             date: dateToStr(file.getDateCreated())
+           });
         }
       }
+      
+      // 2. Travese subfolders
+      var subfolders = folder.getFolders();
+      while (subfolders.hasNext()) {
+        traverse(subfolders.next());
+      }
     }
+
+    // Start traversal
+    traverse(parentFolder);
+    
     Logger.log("--- SEARCH COMPLETE: Found " + documents.length + " docs ---");
     
     // Sort by date descending
@@ -2356,7 +2478,16 @@ function getProjectDocuments(projectId) {
       return new Date(b.date) - new Date(a.date);
     });
     
-    return jsonResponse({ result: "success", documents: documents });
+    return jsonResponse({ 
+      result: "success", 
+      documents: documents,
+      diagnostics: {
+        searchedFolder: parentFolder.getName(),
+        searchedFolderId: parentFolder.getId(),
+        foundCount: documents.length,
+        searchSuffix: searchIdSuffix
+      }
+    });
   } catch (e) {
     return jsonResponse({ result: "error", error: e.toString() });
   }

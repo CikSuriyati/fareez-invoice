@@ -29,6 +29,11 @@ const Expenses = () => {
     const [receiptFilePreview, setReceiptFilePreview] = useState(null);
     const receiptUploadRef = useRef(null);
 
+    // Line Items Extraction State
+    const [extractedItems, setExtractedItems] = useState([]);
+    const [showItemsTable, setShowItemsTable] = useState(false);
+    const [rawOcrText, setRawOcrText] = useState('');
+
     // Form Stats
     const [formData, setFormData] = useState({
         projectId: '',
@@ -101,49 +106,137 @@ const Expenses = () => {
         return new File([u8arr], filename, { type: mime });
     };
 
+    // Line Items Management Helpers
+    const handleItemChange = (id, field, value) => {
+        setExtractedItems(prev => prev.map(item =>
+            item.id === id ? { ...item, [field]: value } : item
+        ));
+    };
+
+    const handleRemoveItem = (id) => {
+        setExtractedItems(prev => prev.filter(item => item.id !== id));
+    };
+
+    const handleAddItem = () => {
+        setExtractedItems(prev => [...prev, {
+            id: Date.now(),
+            description: '',
+            qty: 1,
+            unitPrice: 0
+        }]);
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setIsSaving(true);
 
         try {
-            const amount = (parseFloat(formData.qty) || 0) * (parseFloat(formData.unitPrice) || 0);
-            const payload = {
-                ...formData,
-                amount: amount,
-                category: formData.category || 'Material'
-            };
+            // Check if we're saving multiple items or single entry
+            if (showItemsTable && extractedItems.length > 0) {
+                // BATCH SAVE: Create separate expense entry for each line item
+                let successCount = 0;
+                let failCount = 0;
 
-            // Convert receipt file to base64 if present
-            let receiptData = null;
-            if (receiptFile) {
-                const reader = new FileReader();
-                receiptData = await new Promise((resolve, reject) => {
-                    reader.onloadend = () => {
-                        const base64 = reader.result.split(',')[1];
-                        resolve({
-                            data: base64,
-                            fileName: receiptFile.name,
-                            mimeType: receiptFile.type
-                        });
+                // Convert receipt file to base64 once (reuse for all entries)
+                let receiptData = null;
+                if (receiptFile) {
+                    const reader = new FileReader();
+                    receiptData = await new Promise((resolve, reject) => {
+                        reader.onloadend = () => {
+                            const base64 = reader.result.split(',')[1];
+                            resolve({
+                                data: base64,
+                                fileName: receiptFile.name,
+                                mimeType: receiptFile.type
+                            });
+                        };
+                        reader.onerror = reject;
+                        reader.readAsDataURL(receiptFile);
+                    });
+                }
+
+                // Save each item as a separate expense
+                for (const item of extractedItems) {
+                    if (!item.description) continue; // Skip empty items
+
+                    const amount = (parseFloat(item.qty) || 0) * (parseFloat(item.unitPrice) || 0);
+                    const payload = {
+                        projectId: formData.projectId,
+                        refNo: formData.refNo,
+                        store: formData.store,
+                        desc: item.description,
+                        qty: item.qty,
+                        unitPrice: item.unitPrice,
+                        amount: amount,
+                        category: formData.category || 'Material'
                     };
-                    reader.onerror = reject;
-                    reader.readAsDataURL(receiptFile);
-                });
-            }
 
-            const success = await saveExpense(payload, receiptData, null);
-            if (success) {
-                alert("Expense Saved!");
-                setShowForm(false);
-                setFormData({
-                    projectId: '', refNo: '', store: '', desc: '', qty: 1, unitPrice: 0, category: 'Material'
-                });
-                // Clear receipt file
-                setReceiptFile(null);
-                setReceiptFilePreview(null);
-                setTimeout(loadData, 2000); // Reload everything
+                    const success = await saveExpense(payload, receiptData, null);
+                    if (success) {
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+
+                    // Small delay to avoid overwhelming backend
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
+
+                if (successCount > 0) {
+                    alert(`✓ Saved ${successCount} expense(s) successfully!${failCount > 0 ? `\n${failCount} failed.` : ''}`);
+                    setShowForm(false);
+                    setShowItemsTable(false);
+                    setExtractedItems([]);
+                    setFormData({
+                        projectId: '', refNo: '', store: '', desc: '', qty: 1, unitPrice: 0, category: 'Material'
+                    });
+                    setReceiptFile(null);
+                    setReceiptFilePreview(null);
+                    setTimeout(loadData, 2000);
+                } else {
+                    alert("Failed to save expenses.");
+                }
+
             } else {
-                alert("Failed to save expense.");
+                // SINGLE SAVE: Original behavior
+                const amount = (parseFloat(formData.qty) || 0) * (parseFloat(formData.unitPrice) || 0);
+                const payload = {
+                    ...formData,
+                    amount: amount,
+                    category: formData.category || 'Material'
+                };
+
+                // Convert receipt file to base64 if present
+                let receiptData = null;
+                if (receiptFile) {
+                    const reader = new FileReader();
+                    receiptData = await new Promise((resolve, reject) => {
+                        reader.onloadend = () => {
+                            const base64 = reader.result.split(',')[1];
+                            resolve({
+                                data: base64,
+                                fileName: receiptFile.name,
+                                mimeType: receiptFile.type
+                            });
+                        };
+                        reader.onerror = reject;
+                        reader.readAsDataURL(receiptFile);
+                    });
+                }
+
+                const success = await saveExpense(payload, receiptData, null);
+                if (success) {
+                    alert("Expense Saved!");
+                    setShowForm(false);
+                    setFormData({
+                        projectId: '', refNo: '', store: '', desc: '', qty: 1, unitPrice: 0, category: 'Material'
+                    });
+                    setReceiptFile(null);
+                    setReceiptFilePreview(null);
+                    setTimeout(loadData, 2000);
+                } else {
+                    alert("Failed to save expense.");
+                }
             }
         } catch (error) {
             console.error('Save error:', error);
@@ -191,8 +284,7 @@ const Expenses = () => {
             const blob = new Blob([payload], { type: 'text/plain;charset=utf-8' });
 
             const response = await fetch(
-                import.meta.env.VITE_API_URL ||
-                'https://script.google.com/macros/s/REDACTED_SECRET_7/exec',
+                import.meta.env.VITE_API_URL,
                 {
                     method: 'POST',
                     body: blob
@@ -207,27 +299,59 @@ const Expenses = () => {
             }
 
             if (result.success && result.extracted) {
-                // Pre-fill form with extracted data
-                setFormData(prev => ({
-                    ...prev,
-                    store: result.extracted.store || prev.store,
-                    refNo: result.extracted.refNo || prev.refNo,
-                    unitPrice: result.extracted.amount || prev.unitPrice,
-                    desc: result.extracted.store ? `Receipt from ${result.extracted.store}` : prev.desc
-                }));
+                // Store raw OCR text for debugging
+                setRawOcrText(result.rawText || '');
 
-                // Convert scanned image to file object for later upload
-                // This will be uploaded when user clicks "Save Record"
-                const imageFile = dataURLToFile(receiptImage, 'scanned_receipt.jpg');
-                setReceiptFile(imageFile);
-                setReceiptFilePreview(receiptImage);
+                // Check if line items were extracted
+                if (result.extracted.items && result.extracted.items.length > 0) {
+                    // Multiple items detected - show items table for review
+                    setExtractedItems(result.extracted.items.map((item, idx) => ({
+                        id: Date.now() + idx,  // Unique ID for React key
+                        description: item.description || '',
+                        qty: item.qty || 1,
+                        unitPrice: item.unitPrice || 0
+                    })));
+                    setShowItemsTable(true);
 
-                // Close scanner, open form for user to review/edit
-                setShowReceiptScanner(false);
-                setShowForm(true);
+                    // Pre-fill store and refNo
+                    setFormData(prev => ({
+                        ...prev,
+                        store: result.extracted.store || prev.store,
+                        refNo: result.extracted.refNo || prev.refNo
+                    }));
 
-                // Show success message
-                alert(`✓ Receipt scanned!\nStore: ${result.extracted.store || 'N/A'}\nAmount: RM ${result.extracted.amount || 'N/A'}\n\nPlease review and click Save.`);
+                    // Convert scanned image to file object
+                    const imageFile = dataURLToFile(receiptImage, 'scanned_receipt.jpg');
+                    setReceiptFile(imageFile);
+                    setReceiptFilePreview(receiptImage);
+
+                    // Close scanner, open form with items table
+                    setShowReceiptScanner(false);
+                    setShowForm(true);
+
+                    alert(`✓ Receipt scanned!\nStore: ${result.extracted.store || 'N/A'}\nFound ${result.extracted.items.length} line item(s)\n\nPlease review items and click Save.`);
+
+                } else {
+                    // No items detected - fallback to single total extraction
+                    setFormData(prev => ({
+                        ...prev,
+                        store: result.extracted.store || prev.store,
+                        refNo: result.extracted.refNo || prev.refNo,
+                        unitPrice: result.extracted.amount || prev.unitPrice,
+                        desc: result.extracted.store ? `Receipt from ${result.extracted.store}` : prev.desc
+                    }));
+
+                    // Convert scanned image to file object
+                    const imageFile = dataURLToFile(receiptImage, 'scanned_receipt.jpg');
+                    setReceiptFile(imageFile);
+                    setReceiptFilePreview(receiptImage);
+
+                    // Close scanner, open form
+                    setShowReceiptScanner(false);
+                    setShowForm(true);
+
+                    alert(`✓ Receipt scanned!\nStore: ${result.extracted.store || 'N/A'}\nAmount: RM ${result.extracted.amount || 'N/A'}\n\nPlease review and click Save.`);
+                }
             }
 
         } catch (error) {
@@ -533,6 +657,101 @@ const Expenses = () => {
                                     <p className="text-xs text-gray-500 mt-1">💡 Leave blank if personal expense</p>
                                 </div>
 
+                                {/* LINE ITEMS TABLE - Show when items were extracted from OCR */}
+                                {showItemsTable && extractedItems.length > 0 && (
+                                    <div className="lg:col-span-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                        <div className="flex justify-between items-center mb-3">
+                                            <h4 className="text-sm font-bold text-blue-900 flex items-center gap-2">
+                                                <ShoppingBag size={16} />
+                                                Extracted Line Items ({extractedItems.length})
+                                            </h4>
+                                            <button
+                                                type="button"
+                                                onClick={handleAddItem}
+                                                className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
+                                            >
+                                                <Plus size={14} /> Add Item
+                                            </button>
+                                        </div>
+
+                                        <div className="bg-white rounded border border-blue-200 overflow-hidden">
+                                            <div className="overflow-x-auto">
+                                                <table className="min-w-full text-xs">
+                                                    <thead className="bg-blue-100">
+                                                        <tr>
+                                                            <th className="px-2 py-2 text-left font-semibold text-blue-900">Description</th>
+                                                            <th className="px-2 py-2 text-center font-semibold text-blue-900 w-20">Qty</th>
+                                                            <th className="px-2 py-2 text-right font-semibold text-blue-900 w-24">Unit Price</th>
+                                                            <th className="px-2 py-2 text-right font-semibold text-blue-900 w-24">Total</th>
+                                                            <th className="px-2 py-2 text-center font-semibold text-blue-900 w-12"></th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-gray-100">
+                                                        {extractedItems.map((item) => (
+                                                            <tr key={item.id} className="hover:bg-gray-50">
+                                                                <td className="px-2 py-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={item.description}
+                                                                        onChange={(e) => handleItemChange(item.id, 'description', e.target.value)}
+                                                                        className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
+                                                                        placeholder="Item description"
+                                                                    />
+                                                                </td>
+                                                                <td className="px-2 py-2">
+                                                                    <input
+                                                                        type="number"
+                                                                        min="1"
+                                                                        value={item.qty}
+                                                                        onChange={(e) => handleItemChange(item.id, 'qty', parseFloat(e.target.value) || 1)}
+                                                                        className="w-full border border-gray-300 rounded px-2 py-1 text-xs text-center"
+                                                                    />
+                                                                </td>
+                                                                <td className="px-2 py-2">
+                                                                    <input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        step="0.01"
+                                                                        value={item.unitPrice}
+                                                                        onChange={(e) => handleItemChange(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                                                        className="w-full border border-gray-300 rounded px-2 py-1 text-xs text-right"
+                                                                    />
+                                                                </td>
+                                                                <td className="px-2 py-2 text-right font-mono text-gray-700">
+                                                                    RM {((item.qty || 0) * (item.unitPrice || 0)).toFixed(2)}
+                                                                </td>
+                                                                <td className="px-2 py-2 text-center">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleRemoveItem(item.id)}
+                                                                        className="text-red-600 hover:text-red-800 p-1"
+                                                                        title="Remove item"
+                                                                    >
+                                                                        <X size={14} />
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                    <tfoot className="bg-blue-50 border-t-2 border-blue-200">
+                                                        <tr>
+                                                            <td colSpan="3" className="px-2 py-2 text-right font-bold text-blue-900">Grand Total:</td>
+                                                            <td className="px-2 py-2 text-right font-bold text-blue-900 font-mono">
+                                                                RM {extractedItems.reduce((sum, item) => sum + ((item.qty || 0) * (item.unitPrice || 0)), 0).toFixed(2)}
+                                                            </td>
+                                                            <td></td>
+                                                        </tr>
+                                                    </tfoot>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        <p className="text-xs text-blue-700 mt-2">
+                                            💡 Review and edit the extracted items. Each item will be saved as a separate expense entry.
+                                        </p>
+                                    </div>
+                                )}
+
                                 {/* Receipt Upload Section */}
                                 <div className="lg:col-span-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
                                     <label className="block text-sm font-medium text-amber-900 mb-2 flex items-center gap-2">
@@ -592,11 +811,11 @@ const Expenses = () => {
                                 </div>
 
                                 <div className="lg:col-span-3 flex justify-end gap-3 mt-2">
-                                    <button type="button" onClick={() => { setShowForm(false); setReceiptImage(null); }} className="px-4 py-2 text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 rounded text-sm font-medium">
-                                        Discard (Personal)
+                                    <button type="button" onClick={() => { setShowForm(false); setShowItemsTable(false); setExtractedItems([]); setReceiptImage(null); }} className="px-4 py-2 text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 rounded text-sm font-medium">
+                                        Cancel
                                     </button>
                                     <button type="submit" disabled={isSaving} className="bg-green-600 text-white px-6 py-2 rounded shadow hover:bg-green-700 text-sm font-bold">
-                                        {isSaving ? 'Saving...' : 'Save Record'}
+                                        {isSaving ? 'Saving...' : (showItemsTable && extractedItems.length > 0 ? `Save ${extractedItems.length} Items` : 'Save Record')}
                                     </button>
                                 </div>
                             </form>
