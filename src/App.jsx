@@ -9,7 +9,7 @@ import Reports from './components/Reports';
 import QuickUpdate from './components/QuickUpdate';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { saveInvoiceToSheet, fetchNextId, fetchProjectById, sendInvoiceEmail } from './services/sheetApi';
+import { saveInvoiceToSheet, fetchNextId, fetchProjectById, sendInvoiceEmail, saveInvoicePDF } from './services/sheetApi';
 import { FileText, LayoutDashboard, ShoppingBag, BarChart, Zap, Printer } from 'lucide-react';
 
 function App() {
@@ -18,6 +18,39 @@ function App() {
   const [view, setView] = useState('DASHBOARD'); // 'DASHBOARD', 'EDITOR', 'EXPENSES', 'REPORTS', 'QUICK_UPDATE', 'PRINTABLE_REPORT'
 
   const [isSending, setIsSending] = useState(false);
+  const [isSavingPDF, setIsSavingPDF] = useState(false);
+
+  // Helper to capture the preview and generate a PDF
+  const captureAndGeneratePDF = async () => {
+    const input = document.getElementById('printable-invoice');
+    if (!input) throw new Error("Document preview element not found.");
+
+    const canvas = await html2canvas(input, { scale: 1.5, useCORS: true, logging: false });
+    const imgData = canvas.toDataURL('image/jpeg', 0.8);
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const imgProps = pdf.getImageProperties(imgData);
+
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    let heightLeft = pdfHeight;
+    let position = 0;
+
+    // First Page
+    pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+    heightLeft -= pageHeight;
+
+    // Additional Pages
+    while (heightLeft > 0) {
+      position = heightLeft - pdfHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+    }
+
+    return pdf.output('datauristring');
+  };
 
 
   const [invoiceData, setInvoiceData] = useState({
@@ -99,7 +132,22 @@ function App() {
     setInvoiceData(newData);
   }, []);
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
+    if (invoiceData.project.id) {
+      setIsSavingPDF(true);
+      try {
+        // 1. Silent Save to Spreadsheet first
+        await handleSave(invoiceData, true);
+
+        // 2. Capture and Save PDF copy (Backend handles versioning _v2 etc)
+        const base64 = await captureAndGeneratePDF();
+        await saveInvoicePDF(invoiceData.project.id, invoiceData.type, base64);
+      } catch (e) {
+        console.warn("Failed to auto-archive copy during print:", e);
+      } finally {
+        setIsSavingPDF(false);
+      }
+    }
     window.print();
   };
 
@@ -122,19 +170,21 @@ function App() {
     }
   };
 
-  const handleSave = async (data) => {
+  const handleSave = async (data, isSilent = false) => {
     setIsSaving(true);
-    console.log("Saving to sheet...", data);
+    if (!isSilent) console.log("Saving to sheet...", data);
 
     try {
       const result = await saveInvoiceToSheet(data);
-      if (result) {
+      if (result && !isSilent) {
         alert("Invoice saved successfully!");
         setView('DASHBOARD');
       }
+      return result;
     } catch (e) {
-      alert("Error saving: " + e.message);
+      if (!isSilent) alert("Error saving: " + e.message);
       console.error(e);
+      throw e;
     } finally {
       setIsSaving(false);
     }
@@ -186,41 +236,16 @@ function App() {
 
     setIsSending(true);
     try {
-      // 1. Capture Node
-      const input = document.getElementById('printable-invoice');
-      if (!input) throw new Error("Preview element not found. Please switch to Editor View.");
+      // 1. Silent Save to Spreadsheet first
+      await handleSave(invoiceData, true);
 
-      // 2. Generate Canvas
-      const canvas = await html2canvas(input, { scale: 1.5, useCORS: true, logging: false });
+      // 2. Generate PDF using helper
+      const pdfBase64 = await captureAndGeneratePDF();
 
-      // 3. Generate PDF
-      // 3. Generate PDF (Multi-page support)
-      const imgData = canvas.toDataURL('image/jpeg', 0.8);
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgProps = pdf.getImageProperties(imgData);
+      // 3. Save a copy to Drive (Backend handles versioning _v2 etc)
+      await saveInvoicePDF(invoiceData.project.id, invoiceData.type, pdfBase64);
 
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-      const pageHeight = pdf.internal.pageSize.getHeight();
-
-      let heightLeft = pdfHeight;
-      let position = 0;
-
-      // First Page
-      pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
-      heightLeft -= pageHeight;
-
-      // Additional Pages
-      while (heightLeft > 0) {
-        position = heightLeft - pdfHeight; // Negative position shifts image up
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, pdfWidth, pdfHeight);
-        heightLeft -= pageHeight;
-      }
-
-      const pdfBase64 = pdf.output('datauristring');
-
-      // 4. Send to Backend
+      // 3. Prepare Email Body
       const emailBody = `
         <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
           <div style="background-color: #312e81; padding: 20px; text-align: center;">
@@ -235,19 +260,22 @@ function App() {
               <p style="margin: 0; font-size: 14px;"><strong>Document ID:</strong> ${invoiceData.project.id}</p>
               
               ${/* If Receipt or Paid, emphasize PAID amount */ Number(invoiceData.totals.balance) === 0 ? `
-                  <p style="margin: 5px 0 0; font-size: 14px;"><strong>Total Amount:</strong> RM ${Number(invoiceData.totals.total).toFixed(2)}</p>
+                  <p style="margin: 5px 0 0; font-size: 14px;"><strong>Subtotal:</strong> RM ${Number(invoiceData.totals.total).toFixed(2)}</p>
+                  ${Number(invoiceData.totals.discount) > 0 ? `<p style="margin: 5px 0 0; font-size: 14px; color: #d32f2f;"><strong>Discount:</strong> - RM ${Number(invoiceData.totals.discount).toFixed(2)}</p>` : ''}
+                  <p style="margin: 5px 0 0; font-size: 14px;"><strong>Total Amount:</strong> RM ${(Number(invoiceData.totals.total) - Number(invoiceData.totals.discount)).toFixed(2)}</p>
                   <p style="margin: 5px 0 0; font-size: 16px; color: #166534; font-weight: bold; border-top: 1px solid #ccc; padding-top: 5px; margin-top: 5px;">
                       ${invoiceData.type === 'RECEIPT' ? 'TOTAL PAID' : 'FULLY PAID'}: RM ${Number(invoiceData.totals.deposit).toFixed(2)}
                   </p>
                   <p style="margin: 5px 0 0; font-size: 14px; color: #666;">Balance Due: RM 0.00</p>
               ` : `
                   ${/* Standard Invoice with Potential Discount/Deposit */ ''}
+                  <p style="margin: 5px 0 0; font-size: 14px;"><strong>Subtotal:</strong> RM ${Number(invoiceData.totals.total).toFixed(2)}</p>
+                  
                   ${Number(invoiceData.totals.discount) > 0 ? `
-                    <p style="margin: 5px 0 0; font-size: 14px;"><strong>Subtotal:</strong> RM ${(Number(invoiceData.totals.total) + Number(invoiceData.totals.discount)).toFixed(2)}</p>
                     <p style="margin: 5px 0 0; font-size: 14px; color: #d32f2f;"><strong>Discount:</strong> - RM ${Number(invoiceData.totals.discount).toFixed(2)}</p>
                   ` : ''}
                   
-                  <p style="margin: 5px 0 0; font-size: 14px;"><strong>Total Amount:</strong> RM ${Number(invoiceData.totals.total).toFixed(2)}</p>
+                  <p style="margin: 5px 0 0; font-size: 14px;"><strong>Total Amount:</strong> RM ${(Number(invoiceData.totals.total) - Number(invoiceData.totals.discount)).toFixed(2)}</p>
                   
                   ${Number(invoiceData.totals.deposit) > 0 ? `
                     <p style="margin: 5px 0 0; font-size: 14px;"><strong>Paid/Deposit:</strong> RM ${Number(invoiceData.totals.deposit).toFixed(2)}</p>
@@ -345,16 +373,17 @@ function App() {
                   <div className="hidden sm:flex items-center gap-2 mr-2 border-r border-indigo-800 pr-4">
                     <button
                       onClick={handlePrint}
-                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-md"
+                      disabled={isSavingPDF}
+                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-md disabled:opacity-50"
                     >
-                      <Printer size={14} /> Print
+                      {isSavingPDF ? '...' : <><Printer size={14} /> Print</>}
                     </button>
                     <button
                       onClick={handleSendEmail}
-                      disabled={isSending}
+                      disabled={isSending || isSavingPDF}
                       className="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-md disabled:opacity-50"
                     >
-                      {isSending ? '...' : <><Zap size={14} fill="currentColor" /> Email</>}
+                      {(isSending || isSavingPDF) ? '...' : <><Zap size={14} fill="currentColor" /> Email</>}
                     </button>
                     <button
                       onClick={() => document.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }))}
@@ -464,7 +493,7 @@ function App() {
             {/* Right: Preview (Standard A4) */}
             <div className="w-full lg:col-span-7 flex justify-center">
               <div className="sticky top-24 h-fit w-full flex justify-center">
-                <div className="transform scale-90 sm:scale-95 lg:scale-100 origin-top bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
+                <div className="print-content transform scale-90 sm:scale-95 lg:scale-100 origin-top bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
                   <InvoicePreview data={invoiceData} />
                 </div>
               </div>
@@ -479,22 +508,47 @@ function App() {
         @media print {
             .no-print { display: none !important; }
             
-            body, html { 
+            body, html, #root, .h-full, .min-h-screen { 
               background: white !important; 
+              color: black !important;
               margin: 0 !important;
               padding: 0 !important;
+              height: auto !important;
+              min-height: 0 !important;
+              overflow: visible !important;
             }
 
-            /* Ensure the preview container parent doesn't clip or hide */
-            .w-full, .lg:col-span-12, .grid { 
+            /* Reset the preview wrapper container for pure A4 output */
+            .print-content {
+              transform: none !important;
+              box-shadow: none !important;
+              border: none !important;
+              border-radius: 0 !important;
+              overflow: visible !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              width: 210mm !important;
+              background: white !important;
+            }
+
+            /* Ensure the layout engine doesn't clip parents */
+            .w-full, .lg:col-span-12, .grid, .lg:col-span-7, .flex { 
               display: block !important; 
+              width: 100% !important;
+              height: auto !important;
+              overflow: visible !important;
             }
 
-            /* Avoid tailwind flex/grid interference on parents during print */
             main { 
               padding: 0 !important;
               margin: 0 !important;
               max-width: none !important;
+              width: 100% !important;
+              display: block !important;
+            }
+            
+            .sticky {
+              position: static !important;
             }
         }
       `}</style>

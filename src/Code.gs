@@ -602,6 +602,72 @@ function doPost(e) {
        return jsonResponse({ result: res });
     }
 
+    if (requestData.action === 'SAVE_INVOICE_PDF') {
+      Logger.log('=== SAVE_INVOICE_PDF START ===');
+      var projectId = requestData.projectId;
+      var type = requestData.type;
+      var base64 = requestData.base64;
+      
+      Logger.log('Project ID: ' + projectId);
+      Logger.log('Type: ' + type);
+      Logger.log('Base64 Length: ' + (base64 ? base64.length : 0));
+
+      if (!projectId || !type || !base64) {
+        Logger.log('❌ Error: Missing required fields');
+        return jsonResponse({ result: "error", error: "Missing required fields for PDF save" });
+      }
+
+      try {
+        // Remove dataurl prefix if present
+        if (base64.indexOf(',') > -1) {
+          base64 = base64.split(',')[1];
+        }
+
+        var blob = Utilities.newBlob(Utilities.base64Decode(base64), 'application/pdf');
+        var docInfo = getDocTypeFromStatus(type);
+        var docId = projectId.replace(/^[A-Z]+/, docInfo.prefix);
+        var filename = docId + ".pdf";
+        blob.setName(filename);
+        Logger.log('Calculated Filename: ' + filename);
+
+        // Get year from project ID or current year
+        var year = new Date().getFullYear();
+        var idMatch = projectId.match(/(\d{4})/);
+        if (idMatch) year = idMatch[1];
+        Logger.log('Year Folder: ' + year);
+
+        // Get target folder
+        var targetFolder = getOrCreateYearSubfolder(FOLDER_NAME, year, docInfo.subfolder);
+        Logger.log('Target Folder ID: ' + targetFolder.getId());
+        
+        // Save to Drive
+        var fileUrl = savePDFToDrive(blob, filename, targetFolder);
+        Logger.log('File Saved. URL: ' + fileUrl);
+
+        // Update Doc Link in Projects sheet
+        var projectSheet = ss.getSheetByName(SHEET_PROJECTS);
+        if (projectSheet) {
+          var pData = projectSheet.getDataRange().getValues();
+          var found = false;
+          for (var i = 1; i < pData.length; i++) {
+            if (String(pData[i][1]).trim() === projectId) {
+              projectSheet.getRange(i + 1, 9).setValue(fileUrl);
+              Logger.log('✅ Sheet updated Col I row ' + (i+1));
+              found = true;
+              break;
+            }
+          }
+          if (!found) Logger.log('⚠ Project ID ' + projectId + ' not found in sheet for link update');
+        }
+
+        Logger.log('=== SAVE_INVOICE_PDF SUCCESS ===');
+        return jsonResponse({ result: "success", url: fileUrl });
+      } catch (err) {
+        Logger.log('❌ SAVE_INVOICE_PDF FAILED: ' + err.toString());
+        return jsonResponse({ result: "error", error: err.toString() });
+      }
+    }
+
     if (requestData.action === 'SETUP_TRIGGER') {
        setupMonthlyTrigger();
        return jsonResponse({ result: "Trigger configured for 1st of each month." });
@@ -775,105 +841,16 @@ function doPost(e) {
       // Flush changes to ensure they're committed
       SpreadsheetApp.flush();
       
-      // Determine if we should generate a document (only if payment was made)
-      var shouldGenerateDoc = (receiptData && paidAmount && paidAmount > 0);
-      
-      if (shouldGenerateDoc) {
-        try {
-          // Fetch project data
-          var rowData = pData[projectRow - 1];
-          // Re-fetch the updated deposit value after our changes
-          var updatedRowData = projectSheet.getRange(projectRow, 1, 1, 15).getValues()[0];
-          var projectData = {
-            id: updatedRowData[1],
-            customer: updatedRowData[2],
-            email: updatedRowData[3],
-            phone: updatedRowData[4],
-            address: updatedRowData[5],
-            deposit: updatedRowData[10], // Updated deposit after payment
-            discount: updatedRowData[14] || 0
-          };
-          
-          // Fetch line items
-          var allItems = itemSheet.getDataRange().getValues();
-          var lineItems = [];
-          var searchIdUpper = searchId.toUpperCase();
-          
-          for (var j = 1; j < allItems.length; j++) {
-            if (String(allItems[j][0]).trim().toUpperCase() === searchIdUpper) {
-              lineItems.push({
-                room: allItems[j][1],
-                type: allItems[j][2],
-                desc: allItems[j][3],
-                unitPrice: Number(allItems[j][4]) || 0,
-                qty: Number(allItems[j][5]) || 0,
-                total: Number(allItems[j][6]) || 0
-              });
-            }
-          }
-          
-          if (lineItems.length > 0) {
-            // Generate PDF using the calculated actual status
-            var docInfo = getDocTypeFromStatus(actualStatus);
-            var pdfResult = generatePDFfromData(projectData, lineItems, actualStatus);
-            
-            // Get year from project ID or current year
-            var year = new Date().getFullYear();
-            var idMatch = projectId.match(/(\d{4})/);
-            if (idMatch) {
-              year = idMatch[1];
-            }
-            
-            // Get target folder
-            var targetFolder = getOrCreateYearSubfolder(FOLDER_NAME, year, docInfo.subfolder);
-            
-            // Save to Drive
-            var fileUrl = savePDFToDrive(pdfResult.blob, pdfResult.filename, targetFolder);
-            
-            // Update sheet with document link and status
-            var statusText = docInfo.type === 'INVOICE' ? 'Invoice generated' : 'Receipt generated';
-            projectSheet.getRange(projectRow, 8).setValue(statusText); // Col H: Status
-            projectSheet.getRange(projectRow, 9).setValue(fileUrl); // Col I: Doc Link
-            
-            SpreadsheetApp.flush();
-            
-            return jsonResponse({ 
-              result: "success", 
-              message: "Status updated and " + docInfo.type + " generated",
-              fileUrl: fileUrl,
-              receiptUrl: receiptUrl,
-              pdfBase64: Utilities.base64Encode(pdfResult.blob.getBytes()),
-              pdfFileName: pdfResult.filename
-            });
-          } else {
-            return jsonResponse({ 
-              result: "success", 
-              message: "Status updated (no line items found for document generation)",
-              receiptUrl: receiptUrl
-            });
-          }
-        } catch (e) {
-          // Update status succeeded, but PDF generation failed
-          return jsonResponse({ 
-            result: "partial_success", 
-            message: "Status updated but document generation failed: " + e.toString(),
-            receiptUrl: receiptUrl
-          });
+      return jsonResponse({ 
+        result: "success", 
+        message: "Status updated to " + actualStatus,
+        receiptUrl: receiptUrl,
+        debug: {
+          updatedDeposit: receiptData && paidAmount && paidAmount > 0,
+          paidAmount: paidAmount,
+          actualStatus: actualStatus
         }
-      } else {
-        // Just a status update, no document generation
-        Logger.log('✓ No document generated (receiptData=' + !!receiptData + ', paidAmount=' + paidAmount + ')');
-        return jsonResponse({ 
-          result: "success", 
-          message: "Status updated to " + actualStatus,
-          receiptUrl: receiptUrl,
-          debug: {
-            updatedDeposit: receiptData && paidAmount && paidAmount > 0,
-            paidAmount: paidAmount,
-            actualStatus: actualStatus
-          }
-        });
-      }
+      });
     }
 
     // --- INVOICE HANDLING (Default) ---
@@ -1020,73 +997,7 @@ function doPost(e) {
     
     SpreadsheetApp.flush();
 
-    // ---------------------------------------------------------
-    // 3. GENERATE AND SAVE PDF TO DRIVE
-    // ---------------------------------------------------------
-    try {
-      // Only generate PDF if we have line items and a document type
-      if (data.items && data.items.length > 0 && data.type) {
-        // Prepare project data for PDF generation
-        var pdfProjectData = {
-          id: projectId,
-          customer: data.project.customer,
-          email: data.project.email,
-          phone: data.project.phone,
-          address: data.project.address,
-          deposit: data.totals.deposit || 0,
-          discount: data.discount || 0
-        };
-        
-        // Prepare line items
-        var pdfLineItems = data.items.map(function(item) {
-          return {
-            room: item.room || "",
-            type: item.type || "",
-            desc: item.desc || "",
-            unitPrice: Number(item.unitPrice) || 0,
-            qty: Number(item.qty) || 0,
-            total: (Number(item.unitPrice) || 0) * (Number(item.qty) || 0)
-          };
-        });
-        
-        // Generate PDF
-        var docInfo = getDocTypeFromStatus(data.type);
-        var pdfResult = generatePDFfromData(pdfProjectData, pdfLineItems, data.type);
-        
-        // Get year from project ID or current year
-        var year = new Date().getFullYear();
-        var idMatch = projectId.match(/(\d{4})/);
-        if (idMatch) {
-          year = idMatch[1];
-        }
-        
-        // Get target folder
-        var targetFolder = getOrCreateYearSubfolder(FOLDER_NAME, year, docInfo.subfolder);
-        
-        // Save to Drive
-        var fileUrl = savePDFToDrive(pdfResult.blob, pdfResult.filename, targetFolder);
-        
-        // Update the Doc Link column (Col I = index 9)
-        if (rowIndexToUpdate > 0) {
-          projectSheet.getRange(rowIndexToUpdate, 9).setValue(fileUrl);
-        } else {
-          // For new rows, we need to find it again (just appended)
-          var allData = projectSheet.getDataRange().getValues();
-          for (var k = allData.length - 1; k >= 1; k--) {
-            if (String(allData[k][1]).trim() === searchId) {
-              projectSheet.getRange(k + 1, 9).setValue(fileUrl);
-              break;
-            }
-          }
-        }
-        
-        SpreadsheetApp.flush();
-      }
-    } catch (driveError) {
-      // Don't fail the entire save if Drive fails
-      // Just log the error and continue
-      Logger.log("Drive save failed: " + driveError.toString());
-    }
+    SpreadsheetApp.flush();
 
     return jsonResponse({ result: "success", id: projectId, action: rowIndexToUpdate > 0 ? "updated" : "created" });
 

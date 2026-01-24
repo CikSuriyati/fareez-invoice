@@ -10,8 +10,8 @@ const InvoicePreview = ({ data }) => {
     totals = {}       // { total, deposit, balance }
   } = data;
 
-  // Logic to fill empty rows if fewer than minRows
-  const minRows = 13;
+  // Logic to fill empty rows if fewer than minRows - restored to 12 per user preference
+  const minRows = 12;
   const emptyRows = Math.max(0, minRows - items.length);
 
   // Helper to render currency
@@ -26,17 +26,10 @@ const InvoicePreview = ({ data }) => {
             <strong>FAREEZ INSTALLATION SERVICES</strong><br />
             No 9 Jalan PJU10/1 Damansara Damai<br />
             47830 Petaling Jaya Selangor<br />
-            Phone: +6019-8961029<br />
+            Phone: +60 11-2549 5182<br />
             Email: fareezfauzimy@gmail.com
           </div>
         </div>
-
-        {/* Dynamic Stamp */}
-        {(type === 'INVOICE' || type === 'RECEIPT') && (
-          <div className={`stamp ${status.toLowerCase()}`}>
-            {status === 'PAID' ? 'PAID' : status === 'PARTIAL' ? 'PARTIALLY PAID' : 'UNPAID'}
-          </div>
-        )}
 
         <h1 className="invoice-title">{type}</h1>
       </div>
@@ -59,7 +52,10 @@ const InvoicePreview = ({ data }) => {
                   type === 'RECEIPT' ? 'RCT' : 'JOB';
               return project.id.replace(/^[A-Z]+/, prefix);
             })() : ''}<br />
-            <strong>STATUS:</strong> Generated
+            <strong>STATUS:</strong> <span className={`font-bold uppercase ${status === 'PAID' ? 'text-emerald-600' :
+              status === 'PARTIAL' ? 'text-orange-500' :
+                'text-red-600'
+              }`}>{status}</span>
           </div>
         </div>
 
@@ -94,7 +90,7 @@ const InvoicePreview = ({ data }) => {
               );
             })}
             {Array.from({ length: emptyRows }).map((_, i) => (
-              <tr key={`empty-${i}`} style={{ height: '22px' }}>
+              <tr key={`empty-${i}`} style={{ height: '18px' }}>
                 <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
                 <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
               </tr>
@@ -103,7 +99,7 @@ const InvoicePreview = ({ data }) => {
         </table>
 
         {/* Totals Section - Aligned to Table Columns */}
-        <div className="mt-4 space-y-1 font-jakarta text-[11px] w-full">
+        <div className="mt-1 space-y-0.5 font-jakarta text-[11px] w-full">
           {/* Subtotal Row */}
           <div className="grid grid-cols-[85%_15%] w-full">
             <div className="text-right pr-4 text-slate-500 font-medium border-b border-slate-100 pb-0.5">Subtotal</div>
@@ -119,13 +115,13 @@ const InvoicePreview = ({ data }) => {
           )}
 
           {/* Total Amount Row - Neutral Highlight */}
-          <div className="grid grid-cols-[85%_15%] w-full my-1">
+          <div className="grid grid-cols-[85%_15%] w-full my-0.5">
             <div className="flex justify-end">
-              <div className="bg-slate-900 border-t-2 border-slate-900 px-4 py-1.5 font-bold text-white uppercase tracking-tighter rounded-bl-md">
+              <div className="bg-slate-900 border-t-2 border-slate-900 px-4 py-1 font-bold text-white uppercase tracking-tighter rounded-bl-md">
                 Total Amount
               </div>
             </div>
-            <div className="bg-slate-50 border-t-2 border-slate-900 px-2 py-1.5 text-right font-black text-slate-900 rounded-br-md">
+            <div className="bg-slate-50 border-t-2 border-slate-900 px-2 py-1 text-right font-black text-slate-900 rounded-br-md">
               RM {formatCurrency(Number(totals.total) - Number(totals.discount || 0))}
             </div>
           </div>
@@ -133,72 +129,60 @@ const InvoicePreview = ({ data }) => {
           {/* Deposit Row */}
           {type !== 'QUOTATION' && (
             <div className="grid grid-cols-[85%_15%] w-full">
-              <div className="text-right pr-4 font-bold text-emerald-700 py-1.5 uppercase">{type === 'RECEIPT' ? 'Total Paid' : 'Deposit Paid'}</div>
-              <div className="text-right font-bold text-emerald-700 py-1.5 px-2 bg-emerald-50/50 rounded-md border border-emerald-100/50">RM {formatCurrency(totals.deposit)}</div>
+              <div className="text-right pr-4 font-bold text-emerald-700 py-1 uppercase">{type === 'RECEIPT' ? 'Total Paid' : 'Deposit Paid'}</div>
+              <div className="text-right font-bold text-emerald-700 py-1 px-2 bg-emerald-50/50 rounded-md border border-emerald-100/50">RM {formatCurrency(totals.deposit)}</div>
             </div>
           )}
 
           {/* Balance Due Row - Strong Accented Style (Cell-only highlight) */}
           {type === 'INVOICE' && (
-            <div className="grid grid-cols-[85%_15%] w-full mt-1">
+            <div className="grid grid-cols-[85%_15%] w-full mt-0.5">
               <div className="flex justify-end items-center">
-                <div className="bg-blue-600 px-4 py-2 font-black text-white uppercase italic rounded-l-lg shadow-sm">
+                <div className="bg-blue-600 px-4 py-1.5 font-black text-white uppercase italic rounded-l-lg shadow-sm">
                   Balance Due
                 </div>
               </div>
-              <div className="bg-blue-50 border-2 border-blue-600 border-l-0 px-2 py-2 text-right font-black text-blue-700 rounded-r-lg shadow-sm flex items-center justify-end">
+              <div className="bg-blue-50 border-2 border-blue-600 border-l-0 px-2 py-1.5 text-right font-black text-blue-700 rounded-r-lg shadow-sm flex items-center justify-end">
                 RM {formatCurrency(totals.balance)}
               </div>
             </div>
           )}
 
-          {/* Quotation Deposit notice */}
+          {/* Quotation Deposit Hint */}
           {type === 'QUOTATION' && (
-            <div className="grid grid-cols-[85%_15%] w-full italic text-[10px] text-slate-500 pt-1">
-              <div className="text-right pr-4">Deposit Required (50%)</div>
-              <div className="text-right font-bold px-2 uppercase tracking-tight text-slate-900">RM {formatCurrency((Number(totals.total) - Number(totals.discount || 0)) * 0.5)}</div>
+            <div className="grid grid-cols-[85%_15%] w-full mt-1 pt-1 border-t border-slate-100">
+              <div className="text-right pr-4 font-bold text-slate-500 uppercase tracking-tight">Deposit Required (50%)</div>
+              <div className="text-right font-bold text-slate-900 px-2 bg-slate-50/50 rounded-md">RM {formatCurrency(Number(totals.total - (totals.discount || 0)) * 0.5)}</div>
             </div>
           )}
         </div>
+      </div>
 
-        {/* Payment & Legal Section */}
-        <div style={{ marginTop: '30px', borderTop: '2px solid #ddd', paddingTop: '15px' }}>
-          <div style={{ marginBottom: '15px' }}>
-            <div style={{ width: '48%', float: 'left', fontSize: '11px' }}>
+      {/* Payment & Legal Section - Pushed to bottom of A4 */}
+      <div className="legal-footer">
+        <div style={{ borderTop: '2px solid #ddd', paddingTop: '8px', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <div style={{ width: '45%', fontSize: '10.5px' }}>
               <strong>PAYMENT DETAILS</strong><br />
               Name: MUHAMMAD FAREEZ BIN MOHD FAUZI<br />
               Bank: Maybank<br />
               Account Number: 001141316728
             </div>
-            <div style={{ width: '48%', float: 'right', fontSize: '10px', color: '#666', textAlign: 'justify', lineHeight: '1.2' }}>
+            <div style={{ width: '50%', fontSize: '9.5px', color: '#666', borderLeft: '1px solid #eee', paddingLeft: '12px' }}>
               <strong>DISCLAIMER</strong><br />
-              All payments must be made to the name and account number provided.
-              Please ensure that the account details are entered correctly.
-              We (Fareez Installation Services) will not be held responsible for any payments made to an incorrect account due to errors in entering the account number or recipient information.
+              All payments must be made to the name/account provided. We (Fareez Installation Services) will not be held responsible for errors in entering account details or recipient information.
             </div>
-            <div style={{ clear: 'both' }}></div>
           </div>
 
-          <div style={{ borderTop: '1px solid #ddd', paddingTop: '10px', fontSize: '9px', lineHeight: '1.4' }}>
+          <div style={{ borderTop: '1px solid #eee', paddingTop: '6px', fontSize: '8.5px', color: '#444' }}>
             <strong>TERMS & CONDITIONS</strong>
-            <ul style={{ paddingLeft: '15px', margin: '2px 0' }}>
+            <ul style={{ paddingLeft: '18px', margin: '0', lineHeight: '1.2' }}>
               <li><strong>Inclusions:</strong> Prices listed are for labor and installation services only.</li>
-              <li><strong>Exclusions:</strong> Cost of light bulbs, fans, and external wiring materials are not included unless specified.</li>
-              <li><strong>Transportation:</strong> A transportation fee applies based on project location. RM20 base fee + RM1.50 per km. Charges exclude parking fees, toll charges, building entry fees, condo access fees, or special permits. If incurred, they will be added as separate line items.</li>
+              <li><strong>Exclusions:</strong> Cost of bulbs, fans, and external wiring materials are not included unless specified.</li>
+              <li><strong>Transportation:</strong> A transportation fee applies based on location. RM20 base + RM1.50/km. Excludes parking, tolls, building entry, condo access, or permits. If incurred, they will be added as separate items.</li>
               <li><strong>Liability:</strong> Fareez Installation Services is not responsible for payments made to incorrect account details.</li>
-              <li><strong>Working Hours & After-Hours Charges:</strong>
-                <ul style={{ paddingLeft: '15px', margin: '2px 0' }}>
-                  <li><strong>Standard working hours:</strong> 9:00 AM – 6:00 PM (Friday–Sunday)</li>
-                  <li><strong>Service Availability:</strong> All jobs must be booked in advance. Same-day or urgent appointments are subject to availability.</li>
-                </ul>
-              </li>
-              <li><strong>Workmanship Warranty:</strong>
-                <ul style={{ paddingLeft: '15px', margin: '2px 0' }}>
-                  <li><strong>Period:</strong> 30-day warranty starting from the date of completion.</li>
-                  <li><strong>Scope:</strong> Covers issues directly related to installation.</li>
-                  <li><strong>Exclusions:</strong> This warranty does not cover manufacturer defects or internal component failures of the appliances.</li>
-                </ul>
-              </li>
+              <li><strong>Working Hours:</strong> Standard hours: 9:00 AM – 6:00 PM (Fri–Sun). Jobs must be booked in advance. Same-day or urgent appointments subject to availability.</li>
+              <li><strong>Warranty:</strong> 30-day workmanship warranty from completion. Does not cover manufacturer defects or internal component failures of appliances.</li>
             </ul>
           </div>
         </div>

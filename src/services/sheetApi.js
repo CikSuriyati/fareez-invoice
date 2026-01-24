@@ -287,3 +287,19 @@ export const fetchFileData = async (fileId) => {
         return { error: e.message };
     }
 };
+export const saveInvoicePDF = async (projectId, type, base64) => {
+    const data = {
+        action: 'SAVE_INVOICE_PDF',
+        projectId: projectId,
+        type: type,
+        base64: base64
+    };
+
+    try {
+        // Use postData (Blob method) to avoid CORS preflight issues
+        return await postData(data);
+    } catch (e) {
+        console.error("Failed to save PDF copy:", e);
+        return { error: e.message };
+    }
+};
