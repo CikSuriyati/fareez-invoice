@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { fetchDashboardStats } from '../services/sheetApi';
-import { FileText, DollarSign, Clock, RefreshCcw, TrendingUp, Calendar } from 'lucide-react';
+import { FileText, DollarSign, TrendingUp, Search, RefreshCcw } from 'lucide-react';
 
 const Dashboard = ({ onLoadProject, onNewProject }) => {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [period, setPeriod] = useState('MONTH'); // 'MONTH', 'LAST_MONTH', 'YEAR', 'ALL'
+    const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         loadStats();
@@ -27,149 +28,246 @@ const Dashboard = ({ onLoadProject, onNewProject }) => {
         'ALL': 'All Time'
     };
 
-    if (loading) return <div className="p-8 text-center text-gray-500">Loading Dashboard...</div>;
+    if (loading) return <div className="p-12 text-center text-slate-400 font-medium">Loading Dashboard...</div>;
 
     if (!stats) return (
-        <div className="p-8 text-center">
-            <p className="text-red-500 mb-4">Failed to load dashboard data.</p>
-            <button onClick={loadStats} className="bg-blue-600 text-white px-4 py-2 rounded">Retry</button>
+        <div className="p-12 text-center">
+            <p className="text-red-500 mb-4 font-medium">Failed to load dashboard data.</p>
+            <button onClick={loadStats} className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl text-sm font-semibold transition-all">Retry</button>
         </div>
     );
 
+    // Filter recent projects based on search
+    const filteredRecent = stats.recent ? stats.recent.filter(p =>
+        p.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.customer.toLowerCase().includes(searchQuery.toLowerCase())
+    ) : [];
+
     return (
-        <div className="p-6">
-            <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                <h2 className="text-2xl font-bold text-gray-800">Dashboard</h2>
-
-                <div className="flex flex-wrap items-center gap-2 bg-white p-1 rounded-lg shadow-sm">
-                    {['MONTH', 'LAST_MONTH', 'YEAR', 'ALL'].map((p) => (
-                        <button
-                            key={p}
-                            onClick={() => setPeriod(p)}
-                            className={`px-3 py-1.5 text-xs font-medium rounded transition ${period === p
-                                ? 'bg-indigo-600 text-white shadow-sm'
-                                : 'text-gray-600 hover:bg-gray-100'
-                                }`}
-                        >
-                            {periodLabels[p]}
-                        </button>
-                    ))}
-                    <button onClick={loadStats} className="p-1.5 text-gray-400 hover:text-indigo-600 ml-1" title="Refresh">
-                        <RefreshCcw size={16} />
-                    </button>
+        <div className="min-h-full">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+                <div>
+                    <h1 id="dashboard-title" className="text-3xl font-bold text-slate-800">Dashboard</h1>
+                    <p className="text-slate-500 mt-1">Welcome back! Here's your business overview.</p>
                 </div>
-
-                <button onClick={onNewProject} className="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700 text-sm flex items-center gap-2">
-                    <FileText size={16} /> New Project
+                <button
+                    onClick={onNewProject}
+                    className="mt-4 md:mt-0 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2"
+                >
+                    <FileText size={20} /> New Project
                 </button>
             </div>
 
-            {/* Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                {/* Total Sales (Invoiced) */}
-                <div className="bg-white p-6 rounded-lg shadow border-l-4 border-indigo-500">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-gray-500 text-xs font-bold uppercase tracking-wide">Total Sales</span>
-                        <div className="bg-indigo-50 p-2 rounded-full">
-                            <TrendingUp className="text-indigo-600" size={18} />
+            {/* Time Filters */}
+            <div className="flex flex-wrap gap-2 mb-8">
+                {['MONTH', 'LAST_MONTH', 'YEAR', 'ALL'].map(p => (
+                    <button
+                        key={p}
+                        onClick={() => setPeriod(p)}
+                        className={`px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border ${period === p
+                            ? 'bg-indigo-600 text-white shadow-md border-transparent'
+                            : 'bg-white text-slate-600 hover:bg-slate-100 border-slate-200'
+                            }`}
+                    >
+                        {periodLabels[p]}
+                    </button>
+                ))}
+                <button onClick={loadStats} className="p-2.5 bg-white border border-slate-200 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-slate-50 transition-all ml-auto" title="Refresh Data">
+                    <RefreshCcw size={18} />
+                </button>
+            </div>
+
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {/* Total Sales */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-all duration-300">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                            <TrendingUp className="text-blue-600" size={24} />
                         </div>
+                        {/* Placeholder for growth metric, could be calculated later */}
+                        {/* <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">+12%</span> */}
                     </div>
-                    <div className="text-2xl font-bold text-gray-800">
-                        RM {stats.sales ? stats.sales.toFixed(2) : "0.00"}
-                    </div>
-                    <span className="text-xs text-gray-400">Invoiced ({periodLabels[period]})</span>
+                    <p className="text-slate-500 text-sm font-medium mb-1">Total Sales</p>
+                    <p className="text-2xl font-bold text-slate-800">RM {stats.sales ? stats.sales.toFixed(2) : "0.00"}</p>
                 </div>
 
-                {/* Total Collected (Cash In) */}
-                <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-gray-500 text-xs font-bold uppercase tracking-wide">Collected</span>
-                        <div className="bg-green-50 p-2 rounded-full">
-                            <DollarSign className="text-green-600" size={18} />
+                {/* Collected */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-all duration-300">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
+                            <DollarSign className="text-emerald-600" size={24} />
                         </div>
+                        <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">Cash In</span>
                     </div>
-                    <div className="text-2xl font-bold text-gray-800">
-                        RM {stats.collected ? stats.collected.toFixed(2) : "0.00"}
-                    </div>
-                    <span className="text-xs text-gray-400">Cash In ({periodLabels[period]})</span>
+                    <p className="text-slate-500 text-sm font-medium mb-1">Collected</p>
+                    <p className="text-2xl font-bold text-slate-800">RM {stats.collected ? stats.collected.toFixed(2) : "0.00"}</p>
                 </div>
 
-                {/* Expenses (Cash Out) */}
-                <div className="bg-white p-6 rounded-lg shadow border-l-4 border-red-500">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-gray-500 text-xs font-bold uppercase tracking-wide">Expenses</span>
-                        <div className="bg-red-50 p-2 rounded-full">
-                            <TrendingUp className="text-red-600 rotate-180" size={18} />
+                {/* Expenses */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-all duration-300">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                            <TrendingUp className="text-amber-600 rotate-180" size={24} />
                         </div>
+                        <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2.5 py-1 rounded-full">Cash Out</span>
                     </div>
-                    <div className="text-2xl font-bold text-gray-800">
-                        RM {stats.expenses ? stats.expenses.toFixed(2) : "0.00"}
-                    </div>
-                    <span className="text-xs text-gray-400">Cash Out ({periodLabels[period]})</span>
+                    <p className="text-slate-500 text-sm font-medium mb-1">Expenses</p>
+                    <p className="text-2xl font-bold text-slate-800">RM {stats.expenses ? stats.expenses.toFixed(2) : "0.00"}</p>
                 </div>
 
-                {/* Net Cash Flow */}
-                <div className="bg-white p-6 rounded-lg shadow border-l-4 border-emerald-600">
-                    <div className="flex items-center justify-between mb-2">
-                        <span className="text-gray-500 text-xs font-bold uppercase tracking-wide">Net Profit</span>
-                        <div className="bg-emerald-50 p-2 rounded-full">
-                            <DollarSign className="text-emerald-600" size={18} />
+                {/* Net Profit */}
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-all duration-300">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="w-12 h-12 bg-violet-100 rounded-xl flex items-center justify-center">
+                            <DollarSign className="text-violet-600" size={24} />
                         </div>
+                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${stats.net >= 0 ? 'text-violet-600 bg-violet-50' : 'text-red-600 bg-red-50'}`}>
+                            Net
+                        </span>
                     </div>
-                    <div className={`text-2xl font-bold ${stats.net >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                    <p className="text-slate-500 text-sm font-medium mb-1">Net Profit</p>
+                    <p className={`text-2xl font-bold ${stats.net >= 0 ? 'text-slate-800' : 'text-red-600'}`}>
                         RM {stats.net ? stats.net.toFixed(2) : "0.00"}
-                    </div>
-                    <span className="text-xs text-gray-400">Real Cash in Hand</span>
+                    </p>
                 </div>
             </div>
 
-            {/* Recent Table */}
-            <div className="bg-white shadow rounded-lg overflow-hidden overflow-x-auto">
-                <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-                    <h3 className="text-lg font-semibold text-gray-800">Activity Log ({periodLabels[period]})</h3>
+            {/* Activity Log Section */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                {/* Section Header */}
+                <div className="px-6 py-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                        <h2 className="text-xl font-bold text-slate-800">Activity Log</h2>
+                        <p className="text-slate-500 text-sm mt-0.5">{periodLabels[period]}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="relative w-full sm:w-64">
+                            <input
+                                type="text"
+                                placeholder="Search jobs..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full"
+                            />
+                            <Search className="text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" size={20} />
+                        </div>
+                    </div>
                 </div>
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                        <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {stats.recent && stats.recent.map((proj) => (
-                            <tr key={proj.id} className="hover:bg-gray-50">
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-indigo-600">
-                                    {proj.id}
-                                    {proj.type === 'QUOTATION' && <span className="ml-2 text-xs bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded">QTN</span>}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{proj.date}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{proj.customer}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">RM {Number(proj.total).toFixed(2)}</td>
-                                <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                                        ${proj.status === 'PAID' ? 'bg-green-100 text-green-800' :
-                                            proj.status === 'UNPAID' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                        {proj.status}
-                                    </span>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <button onClick={() => onLoadProject(proj.id)} className="text-indigo-600 hover:text-indigo-900 border border-indigo-200 rounded px-3 py-1 hover:bg-indigo-50">
-                                        Load
-                                    </button>
-                                </td>
+
+                {/* Table (Desktop only) */}
+                <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full">
+                        <thead>
+                            <tr className="bg-slate-50">
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Job ID</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Customer</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Total</th>
+                                <th className="px-6 py-4 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                                <th className="px-6 py-4 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Action</th>
                             </tr>
-                        ))}
-                        {(!stats.recent || stats.recent.length === 0) && (
-                            <tr>
-                                <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500">No projects found in this period.</td>
-                            </tr>
-                        )}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {filteredRecent.length > 0 ? (
+                                filteredRecent.map((proj) => {
+                                    const initial = proj.customer ? proj.customer.charAt(0).toUpperCase() : '?';
+                                    const colors = ['from-indigo-400 to-indigo-600', 'from-rose-400 to-rose-600', 'from-amber-400 to-amber-600', 'from-cyan-400 to-cyan-600', 'from-emerald-400 to-emerald-600'];
+                                    const colorClass = colors[proj.customer.length % colors.length];
+
+                                    return (
+                                        <tr key={proj.id} className="hover:bg-slate-50 transition-colors duration-150">
+                                            <td className="px-6 py-4">
+                                                <span className="text-sm font-semibold text-indigo-600">{proj.id}</span>
+                                                {proj.type === 'QUOTATION' && <span className="ml-2 text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded uppercase tracking-wider">QTN</span>}
+                                            </td>
+                                            <td className="px-6 py-4"><span className="text-sm text-slate-600">{proj.date}</span></td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-8 h-8 bg-gradient-to-br ${colorClass} rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm`}>
+                                                        {initial}
+                                                    </div>
+                                                    <span className="text-sm font-medium text-slate-800">{proj.customer}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4"><span className="text-sm font-semibold text-slate-800">RM {Number(proj.total).toFixed(2)}</span></td>
+                                            <td className="px-6 py-4">
+                                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold 
+                                                    ${proj.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' :
+                                                        proj.status === 'UNPAID' ? 'bg-amber-100 text-amber-700' :
+                                                            proj.status === 'PARTIAL' ? 'bg-orange-100 text-orange-700' :
+                                                                'bg-red-100 text-red-700'}`}>
+                                                    {proj.status}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <button
+                                                    onClick={() => onLoadProject(proj.id)}
+                                                    className="text-indigo-600 hover:text-indigo-900 font-medium text-sm hover:underline"
+                                                >
+                                                    View Detail
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })
+                            ) : (
+                                <tr>
+                                    <td colSpan="6" className="px-6 py-12 text-center text-slate-400 italic">
+                                        No projects found in this period.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+
+                {/* Card List (Mobile only) */}
+                <div className="md:hidden divide-y divide-slate-100">
+                    {filteredRecent.length > 0 ? (
+                        filteredRecent.map((proj) => {
+                            const initial = proj.customer ? proj.customer.charAt(0).toUpperCase() : '?';
+                            const colors = ['from-indigo-400 to-indigo-600', 'from-rose-400 to-rose-600', 'from-amber-400 to-amber-600', 'from-cyan-400 to-cyan-600', 'from-emerald-400 to-emerald-600'];
+                            const colorClass = colors[proj.customer.length % colors.length];
+
+                            return (
+                                <div
+                                    key={proj.id}
+                                    className="p-4 active:bg-slate-50 transition-colors cursor-pointer"
+                                    onClick={() => onLoadProject(proj.id)}
+                                >
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-8 h-8 bg-gradient-to-br ${colorClass} rounded-full flex items-center justify-center text-white text-[10px] font-bold`}>
+                                                {initial}
+                                            </div>
+                                            <div>
+                                                <h4 className="font-bold text-slate-800 text-sm leading-tight">{proj.customer}</h4>
+                                                <p className="text-[10px] font-bold text-indigo-600 mt-0.5">{proj.id}</p>
+                                            </div>
+                                        </div>
+                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider 
+                                            ${proj.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' :
+                                                proj.status === 'UNPAID' ? 'bg-amber-100 text-amber-700' :
+                                                    proj.status === 'PARTIAL' ? 'bg-orange-100 text-orange-700' :
+                                                        'bg-red-100 text-red-700'}`}>
+                                            {proj.status}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-center mt-3">
+                                        <span className="text-xs text-slate-400 font-medium">{proj.date}</span>
+                                        <span className="text-sm font-bold text-slate-900">RM {Number(proj.total).toFixed(2)}</span>
+                                    </div>
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <div className="p-8 text-center text-slate-400 italic text-sm">
+                            No records found.
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

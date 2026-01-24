@@ -278,8 +278,7 @@ const Expenses = () => {
             // Use Blob to force simple request (prevents CORS preflight)
             const payload = JSON.stringify({
                 action: 'SCAN_RECEIPT',
-                image: receiptImage,
-                apiKey: import.meta.env.VITE_VISION_API_KEY
+                image: receiptImage
             });
             const blob = new Blob([payload], { type: 'text/plain;charset=utf-8' });
 
@@ -617,250 +616,197 @@ const Expenses = () => {
                 <>
                     {/* FORM */}
                     {showForm && (
-                        <div className="bg-white p-6 rounded-lg shadow-lg mb-8 border border-indigo-100 animate-slideDown">
-                            <h3 className="text-lg font-semibold mb-4 text-gray-700">New Expense Entry</h3>
-                            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="bg-white p-5 rounded-lg shadow mb-8 border border-gray-200 animate-slideDown overflow-hidden">
+                            <h3 className="text-xl font-bold mb-5 text-slate-800">New Expense Entry</h3>
+                            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                                 {/* Inputs */}
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Date</label>
-                                    <input type="text" value={new Date().toLocaleDateString()} disabled className="w-full border p-2 rounded bg-gray-50 text-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
-                                    <select name="category" value={formData.category} onChange={handleInputChange} className="w-full border p-2 rounded text-sm">
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Category</label>
+                                    <select name="category" value={formData.category} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none">
                                         {['Material', 'Salary', 'Transport', 'Utility', 'Marketing', 'Asset', 'Inventory', 'Other'].map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
-                                    <input type="text" name="desc" required value={formData.desc} onChange={handleInputChange} className="w-full border p-2 rounded text-sm" placeholder="Item Name" />
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Description</label>
+                                    <input type="text" name="desc" required value={formData.desc} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Item Name" />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Store / Supplier</label>
-                                    <input type="text" name="store" required value={formData.store} onChange={handleInputChange} className="w-full border p-2 rounded text-sm" placeholder="Store Name" />
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Store / Supplier</label>
+                                    <input type="text" name="store" required value={formData.store} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Store Name" />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Qty</label>
+                                        <input type="number" name="qty" min="1" value={formData.qty} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Price (RM)</label>
+                                        <input type="number" name="unitPrice" min="0" step="0.01" value={formData.unitPrice} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                    </div>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Qty</label>
-                                    <input type="number" name="qty" min="1" value={formData.qty} onChange={handleInputChange} className="w-full border p-2 rounded text-sm" />
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Ref No</label>
+                                    <input type="text" name="refNo" required value={formData.refNo} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none" />
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Unit Price (RM)</label>
-                                    <input type="number" name="unitPrice" min="0" step="0.01" value={formData.unitPrice} onChange={handleInputChange} className="w-full border p-2 rounded text-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Ref No</label>
-                                    <input type="text" name="refNo" required value={formData.refNo} onChange={handleInputChange} className="w-full border p-2 rounded text-sm" />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">Project ID or Type "INVENTORY"</label>
-                                    <input type="text" name="projectId" value={formData.projectId} onChange={handleInputChange} className="w-full border p-2 rounded text-sm" placeholder="JOB-XXXX or INVENTORY" />
-                                    <p className="text-xs text-gray-500 mt-1">💡 Leave blank if personal expense</p>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Project ID</label>
+                                    <input type="text" name="projectId" value={formData.projectId} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="JOB-XXXX or INVENTORY" />
                                 </div>
 
-                                {/* LINE ITEMS TABLE - Show when items were extracted from OCR */}
+                                {/* LINE ITEMS TABLE */}
                                 {showItemsTable && extractedItems.length > 0 && (
-                                    <div className="lg:col-span-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                        <div className="flex justify-between items-center mb-3">
-                                            <h4 className="text-sm font-bold text-blue-900 flex items-center gap-2">
-                                                <ShoppingBag size={16} />
-                                                Extracted Line Items ({extractedItems.length})
+                                    <div className="lg:col-span-3 p-5 bg-indigo-50 rounded-2xl border border-indigo-100">
+                                        <div className="flex justify-between items-center mb-4">
+                                            <h4 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                                                <ShoppingBag size={18} />
+                                                Line Items ({extractedItems.length})
                                             </h4>
                                             <button
                                                 type="button"
                                                 onClick={handleAddItem}
-                                                className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
+                                                className="text-xs font-bold px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
                                             >
-                                                <Plus size={14} /> Add Item
+                                                Add Item
                                             </button>
                                         </div>
 
-                                        <div className="bg-white rounded border border-blue-200 overflow-hidden">
+                                        <div className="bg-white rounded-xl border border-indigo-100 overflow-hidden">
                                             <div className="overflow-x-auto">
-                                                <table className="min-w-full text-xs">
-                                                    <thead className="bg-blue-100">
+                                                <table className="min-w-full text-sm">
+                                                    <thead className="bg-slate-50 border-b border-slate-100">
                                                         <tr>
-                                                            <th className="px-2 py-2 text-left font-semibold text-blue-900">Description</th>
-                                                            <th className="px-2 py-2 text-center font-semibold text-blue-900 w-20">Qty</th>
-                                                            <th className="px-2 py-2 text-right font-semibold text-blue-900 w-24">Unit Price</th>
-                                                            <th className="px-2 py-2 text-right font-semibold text-blue-900 w-24">Total</th>
-                                                            <th className="px-2 py-2 text-center font-semibold text-blue-900 w-12"></th>
+                                                            <th className="px-4 py-3 text-left font-bold text-slate-500">Item</th>
+                                                            <th className="px-4 py-3 text-center font-bold text-slate-500 w-20">Qty</th>
+                                                            <th className="px-4 py-3 text-right font-bold text-slate-500 w-28">Pric</th>
+                                                            <th className="px-4 py-3 text-right font-bold text-slate-500 w-28">Total</th>
+                                                            <th className="px-4 py-3 text-center w-12"></th>
                                                         </tr>
                                                     </thead>
-                                                    <tbody className="divide-y divide-gray-100">
+                                                    <tbody className="divide-y divide-slate-50">
                                                         {extractedItems.map((item) => (
-                                                            <tr key={item.id} className="hover:bg-gray-50">
-                                                                <td className="px-2 py-2">
-                                                                    <input
-                                                                        type="text"
-                                                                        value={item.description}
-                                                                        onChange={(e) => handleItemChange(item.id, 'description', e.target.value)}
-                                                                        className="w-full border border-gray-300 rounded px-2 py-1 text-xs"
-                                                                        placeholder="Item description"
-                                                                    />
+                                                            <tr key={item.id}>
+                                                                <td className="px-4 py-3">
+                                                                    <input type="text" value={item.description} onChange={(e) => handleItemChange(item.id, 'description', e.target.value)} className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 text-sm font-medium" />
                                                                 </td>
-                                                                <td className="px-2 py-2">
-                                                                    <input
-                                                                        type="number"
-                                                                        min="1"
-                                                                        value={item.qty}
-                                                                        onChange={(e) => handleItemChange(item.id, 'qty', parseFloat(e.target.value) || 1)}
-                                                                        className="w-full border border-gray-300 rounded px-2 py-1 text-xs text-center"
-                                                                    />
+                                                                <td className="px-4 py-3">
+                                                                    <input type="number" min="1" value={item.qty} onChange={(e) => handleItemChange(item.id, 'qty', e.target.value)} className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 text-sm text-center font-medium" />
                                                                 </td>
-                                                                <td className="px-2 py-2">
-                                                                    <input
-                                                                        type="number"
-                                                                        min="0"
-                                                                        step="0.01"
-                                                                        value={item.unitPrice}
-                                                                        onChange={(e) => handleItemChange(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                                                                        className="w-full border border-gray-300 rounded px-2 py-1 text-xs text-right"
-                                                                    />
+                                                                <td className="px-4 py-3">
+                                                                    <input type="number" step="0.01" value={item.unitPrice} onChange={(e) => handleItemChange(item.id, 'unitPrice', e.target.value)} className="w-full bg-slate-50 border-none rounded-lg px-2 py-1.5 text-sm text-right font-medium" />
                                                                 </td>
-                                                                <td className="px-2 py-2 text-right font-mono text-gray-700">
-                                                                    RM {((item.qty || 0) * (item.unitPrice || 0)).toFixed(2)}
+                                                                <td className="px-4 py-3 text-right font-bold text-slate-700">
+                                                                    {(item.qty * item.unitPrice).toFixed(2)}
                                                                 </td>
-                                                                <td className="px-2 py-2 text-center">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => handleRemoveItem(item.id)}
-                                                                        className="text-red-600 hover:text-red-800 p-1"
-                                                                        title="Remove item"
-                                                                    >
-                                                                        <X size={14} />
-                                                                    </button>
+                                                                <td className="px-4 py-3 text-center">
+                                                                    <button type="button" onClick={() => handleRemoveItem(item.id)} className="text-red-400 hover:text-red-600 p-1"><X size={16} /></button>
                                                                 </td>
                                                             </tr>
                                                         ))}
                                                     </tbody>
-                                                    <tfoot className="bg-blue-50 border-t-2 border-blue-200">
-                                                        <tr>
-                                                            <td colSpan="3" className="px-2 py-2 text-right font-bold text-blue-900">Grand Total:</td>
-                                                            <td className="px-2 py-2 text-right font-bold text-blue-900 font-mono">
-                                                                RM {extractedItems.reduce((sum, item) => sum + ((item.qty || 0) * (item.unitPrice || 0)), 0).toFixed(2)}
-                                                            </td>
-                                                            <td></td>
-                                                        </tr>
-                                                    </tfoot>
                                                 </table>
                                             </div>
                                         </div>
-
-                                        <p className="text-xs text-blue-700 mt-2">
-                                            💡 Review and edit the extracted items. Each item will be saved as a separate expense entry.
-                                        </p>
                                     </div>
                                 )}
 
-                                {/* Receipt Upload Section */}
-                                <div className="lg:col-span-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                                    <label className="block text-sm font-medium text-amber-900 mb-2 flex items-center gap-2">
-                                        <Upload size={18} />
-                                        Attach Receipt (Optional)
-                                    </label>
-
-                                    <input
-                                        ref={receiptUploadRef}
-                                        type="file"
-                                        accept="image/jpeg,image/jpg,image/png,application/pdf"
-                                        onChange={handleReceiptFileSelect}
-                                        className="hidden"
-                                    />
-
-                                    {!receiptFile ? (
-                                        <button
-                                            type="button"
-                                            onClick={() => receiptUploadRef.current?.click()}
-                                            className="w-full border-2 border-dashed border-amber-300 rounded-lg p-4 hover:border-amber-400 hover:bg-amber-100 transition-colors flex items-center justify-center gap-2 text-amber-700"
-                                        >
-                                            <Upload size={20} />
-                                            <span className="text-sm font-medium">Click to upload receipt (JPG, PNG, PDF - max 10MB)</span>
-                                        </button>
-                                    ) : (
-                                        <div className="border border-amber-200 rounded-lg p-3 bg-white">
-                                            <div className="flex items-start gap-3">
-                                                {receiptFilePreview ? (
-                                                    <img
-                                                        src={receiptFilePreview}
-                                                        alt="Receipt preview"
-                                                        className="w-16 h-16 object-cover rounded"
-                                                    />
-                                                ) : (
-                                                    <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
-                                                        <FileText size={24} className="text-gray-500" />
-                                                    </div>
-                                                )}
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-medium text-gray-900 truncate">
-                                                        {receiptFile.name}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500">
-                                                        {(receiptFile.size / 1024).toFixed(1)} KB
-                                                    </p>
+                                {/* Attachments */}
+                                <div className="lg:col-span-3">
+                                    <div
+                                        onClick={() => receiptUploadRef.current?.click()}
+                                        className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${receiptFile ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300 hover:border-indigo-400 hover:bg-slate-50'}`}
+                                    >
+                                        <input ref={receiptUploadRef} type="file" onChange={handleReceiptFileSelect} className="hidden" />
+                                        {receiptFile ? (
+                                            <div className="flex items-center justify-center gap-4">
+                                                {receiptFilePreview && <img src={receiptFilePreview} className="w-12 h-12 object-cover rounded-lg" />}
+                                                <div className="text-left">
+                                                    <p className="text-sm font-bold text-slate-900">{receiptFile.name}</p>
+                                                    <p className="text-xs text-slate-400">Tap to change</p>
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={handleRemoveReceiptFile}
-                                                    className="p-1 hover:bg-red-100 rounded-full transition-colors"
-                                                >
-                                                    <X size={18} className="text-red-600" />
-                                                </button>
+                                                <button type="button" onClick={(e) => { e.stopPropagation(); handleRemoveReceiptFile(); }} className="p-2 text-red-500 hover:bg-red-50 rounded-full"><X size={20} /></button>
                                             </div>
-                                        </div>
-                                    )}
+                                        ) : (
+                                            <div className="flex flex-col items-center">
+                                                <Upload size={32} className="text-slate-300 mb-2" />
+                                                <p className="text-sm font-bold text-slate-600">Attach Receipt</p>
+                                                <p className="text-xs text-slate-400 mt-1">Tap here to upload a photo</p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
-                                <div className="lg:col-span-3 flex justify-end gap-3 mt-2">
-                                    <button type="button" onClick={() => { setShowForm(false); setShowItemsTable(false); setExtractedItems([]); setReceiptImage(null); }} className="px-4 py-2 text-red-600 hover:text-red-700 border border-red-200 hover:border-red-300 rounded text-sm font-medium">
-                                        Cancel
-                                    </button>
-                                    <button type="submit" disabled={isSaving} className="bg-green-600 text-white px-6 py-2 rounded shadow hover:bg-green-700 text-sm font-bold">
-                                        {isSaving ? 'Saving...' : (showItemsTable && extractedItems.length > 0 ? `Save ${extractedItems.length} Items` : 'Save Record')}
+                                {/* Form Actions */}
+                                <div className="lg:col-span-3 flex gap-3 mt-4">
+                                    <button type="button" onClick={() => { setShowForm(false); setExtractedItems([]); }} className="flex-1 py-4 text-slate-500 font-bold bg-slate-100 rounded-2xl hover:bg-slate-200 transition">Cancel</button>
+                                    <button type="submit" disabled={isSaving} className="flex-[2] py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 disabled:opacity-50 transition">
+                                        {isSaving ? 'Processing...' : (showItemsTable ? `Save ${extractedItems.length} Items` : 'Save Expense')}
                                     </button>
                                 </div>
                             </form>
                         </div>
                     )}
 
-                    {/* TABLE */}
-                    <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
-                        <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
-                                <thead className="bg-gray-50">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Store & Item</th>
-                                        <th className="hidden md:table-cell px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project</th>
-                                        <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                    {/* TABLE & LIST VIEW */}
+                    <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+                        {/* Desktop Table View */}
+                        <div className="hidden md:block overflow-x-auto">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="bg-slate-50 border-b border-slate-100">
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-widest">Date</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-widest">Category</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-widest">Detail</th>
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-widest">Job ID</th>
+                                        <th className="px-6 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-widest">Amount</th>
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white divide-y divide-gray-200">
+                                <tbody className="divide-y divide-slate-100">
                                     {expenses.map((exp, idx) => (
-                                        <tr key={idx} className="hover:bg-gray-50 text-xs text-gray-700">
-                                            <td className="px-4 py-3 whitespace-nowrap text-gray-500">{exp.date}</td>
-                                            <td className="px-4 py-3 whitespace-nowrap">
-                                                <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase
-                                                ${exp.category === 'Material' ? 'bg-blue-100 text-blue-700' :
-                                                        exp.category === 'Salary' ? 'bg-green-100 text-green-700' :
-                                                            exp.category === 'Transport' ? 'bg-yellow-100 text-yellow-700' :
-                                                                'bg-gray-100 text-gray-600'
+                                        <tr key={idx} className="hover:bg-slate-50 text-sm">
+                                            <td className="px-6 py-4 text-slate-500">{exp.date}</td>
+                                            <td className="px-6 py-4">
+                                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${exp.category === 'Material' ? 'bg-blue-100 text-blue-700' :
+                                                        exp.category === 'Salary' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
                                                     }`}>
-                                                    {exp.category || 'General'}
+                                                    {exp.category || 'Other'}
                                                 </span>
                                             </td>
-                                            <td className="px-4 py-3">
-                                                <div className="font-medium text-gray-900">{exp.store}</div>
-                                                <div className="text-gray-500 truncate max-w-[150px]">{exp.desc}</div>
+                                            <td className="px-6 py-4">
+                                                <div className="font-bold text-slate-800">{exp.store}</div>
+                                                <div className="text-xs text-slate-500">{exp.desc}</div>
                                             </td>
-                                            <td className="hidden md:table-cell px-4 py-3 whitespace-nowrap font-mono text-gray-500">{exp.projectId || '-'}</td>
-                                            <td className="px-4 py-3 text-right font-bold text-gray-900">RM {Number(exp.amount).toFixed(2)}</td>
+                                            <td className="px-6 py-4 font-bold text-indigo-600">{exp.projectId || '-'}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-slate-900">RM {Number(exp.amount).toFixed(2)}</td>
                                         </tr>
                                     ))}
-                                    {expenses.length === 0 && <tr><td colSpan="5" className="p-8 text-center text-gray-500">No expenses found for this period.</td></tr>}
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Mobile Card View */}
+                        <div className="md:hidden divide-y divide-slate-100">
+                            {expenses.map((exp, idx) => (
+                                <div key={idx} className="p-5 active:bg-slate-50 transition-colors">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div>
+                                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${exp.category === 'Material' ? 'bg-blue-100 text-blue-700' :
+                                                    exp.category === 'Salary' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                                                }`}>
+                                                {exp.category || 'Other'}
+                                            </span>
+                                            <h4 className="font-bold text-slate-800 mt-2">{exp.store}</h4>
+                                            <p className="text-xs text-slate-500 mt-1">{exp.desc}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-lg font-bold text-slate-900 leading-none">RM {Number(exp.amount).toFixed(2)}</span>
+                                            <p className="text-[10px] font-bold text-indigo-600 mt-1">{exp.projectId || 'PERSONAL'}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">{exp.date}</div>
+                                </div>
+                            ))}
+                        </div>
+                        {expenses.length === 0 && <div className="p-12 text-center text-slate-400 italic">No business expenses recorded yet.</div>}
                     </div>
                 </>
             )}

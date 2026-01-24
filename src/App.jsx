@@ -299,62 +299,122 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* Navbar (Hidden in Printable Report) */}
+    <div className="h-full min-h-screen bg-slate-50 flex flex-col font-jakarta pb-20 md:pb-0">
+      {/* Top Header - Professional Business Branding */}
       {view !== 'PRINTABLE_REPORT' && (
-        <nav className="bg-indigo-900 text-white p-4 shadow-md no-print">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3 cursor-pointer" onClick={() => setView('DASHBOARD')}>
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              {/* Logo/Brand - Original Name Maintained */}
+              <div className="flex items-center cursor-pointer group" onClick={() => setView('DASHBOARD')}>
+                <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md group-hover:bg-indigo-700 transition-colors">
+                  <Zap size={22} fill="currentColor" />
+                </div>
+                <div className="ml-3">
+                  <h1 className="text-lg font-bold text-slate-900 leading-none">Fareez Invoice Generator</h1>
+                  <p className="text-[10px] font-bold text-slate-400 tracking-widest mt-1 uppercase">Installation Services</p>
+                </div>
+              </div>
+
+              {/* Desktop Menu (md and up) */}
+              <div className="hidden md:flex items-center bg-slate-100 p-1 rounded-xl space-x-1">
+                <button
+                  onClick={() => setView('DASHBOARD')}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'DASHBOARD' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}`}
+                >
+                  Dashboard
+                </button>
+                <button
+                  onClick={gotoNewProject}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'EDITOR' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}`}
+                >
+                  New Project
+                </button>
+                <button
+                  onClick={() => setView('EXPENSES')}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'EXPENSES' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}`}
+                >
+                  Expenses
+                </button>
+                <button
+                  onClick={() => setView('REPORTS')}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'REPORTS' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}`}
+                >
+                  Reports
+                </button>
+                <button
+                  onClick={() => setView('QUICK_UPDATE')}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${view === 'QUICK_UPDATE' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700 hover:bg-white/50'}`}
+                >
+                  Quick Update
+                </button>
+              </div>
+
+              {/* Right Side Actions */}
+              <div className="flex items-center gap-3">
+                <div className="hidden sm:flex flex-col text-right mr-2">
+                  <span className="text-xs font-bold text-slate-700">{userEmail?.split('@')[0]}</span>
+                  <span className="text-[10px] text-slate-400 font-medium italic">Administrator</span>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="bg-slate-100 hover:bg-red-50 text-slate-600 hover:text-red-600 p-2.5 rounded-xl transition-all border border-slate-200 hover:border-red-100"
+                  title="Logout"
+                >
+                  <span className="hidden sm:inline-block mr-2 text-xs font-bold">Logout</span>
+                  🚪
+                </button>
+              </div>
+            </div>
+          </div>
+        </header>
+      )}
+
+      {/* Mobile Bottom Navigation - Large Tap Targets */}
+      {view !== 'PRINTABLE_REPORT' && (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 px-2 pb-safe-area shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+          <div className="flex items-center justify-around h-20">
+            <button
+              onClick={() => setView('DASHBOARD')}
+              className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl transition-all ${view === 'DASHBOARD' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}
+            >
+              <LayoutDashboard size={24} />
+              <span className="text-[10px] font-bold mt-1">Home</span>
+            </button>
+            <button
+              onClick={gotoNewProject}
+              className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl transition-all ${view === 'EDITOR' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}
+            >
               <FileText size={24} />
-              <h1 className="text-lg md:text-xl font-bold tracking-wide text-center">Fareez Invoice Generator (v2.0)</h1>
-            </div>
-
-            <div className="flex gap-2 flex-wrap justify-center w-full md:w-auto">
-              <button
-                onClick={() => setView('DASHBOARD')}
-                className={`flex items-center gap-2 px-3 py-1 rounded hover:bg-indigo-800 transition ${view === 'DASHBOARD' ? 'bg-indigo-800 ring-1 ring-indigo-400' : ''}`}
-              >
-                <LayoutDashboard size={18} /> <span className="hidden sm:inline">Home</span>
-              </button>
-              <button
-                onClick={gotoNewProject}
-                className={`flex items-center gap-2 px-3 py-1 rounded hover:bg-indigo-800 transition ${view === 'EDITOR' ? 'bg-indigo-800 ring-1 ring-indigo-400' : ''}`}
-              >
-                <FileText size={18} /> <span className="hidden sm:inline">Editor</span>
-              </button>
-              <button
-                onClick={() => setView('EXPENSES')}
-                className={`flex items-center gap-2 px-3 py-1 rounded hover:bg-indigo-800 transition ${view === 'EXPENSES' ? 'bg-indigo-800 ring-1 ring-indigo-400' : ''}`}
-              >
-                <ShoppingBag size={18} /> <span className="hidden sm:inline">Expenses</span>
-              </button>
-              <button
-                onClick={() => setView('REPORTS')}
-                className={`flex items-center gap-2 px-3 py-1 rounded hover:bg-indigo-800 transition ${view === 'REPORTS' ? 'bg-indigo-800 ring-1 ring-indigo-400' : ''}`}
-              >
-                <BarChart size={18} /> <span className="hidden sm:inline">Reports</span>
-              </button>
-              <button
-                onClick={() => setView('QUICK_UPDATE')}
-                className={`flex items-center gap-2 px-3 py-1 rounded hover:bg-indigo-800 transition ${view === 'QUICK_UPDATE' ? 'bg-indigo-800 ring-1 ring-indigo-400' : ''}`}
-              >
-                <Zap size={18} /> <span className="hidden sm:inline">Quick Update</span>
-              </button>
-
-              <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-3 py-1 rounded hover:bg-red-600 bg-red-700 transition ml-2"
-                title="Logout"
-              >
-                <span className="text-sm">🚪 Logout</span>
-              </button>
-            </div>
+              <span className="text-[10px] font-bold mt-1">New</span>
+            </button>
+            <button
+              onClick={() => setView('QUICK_UPDATE')}
+              className={`flex flex-col items-center justify-center w-16 h-16 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-200 transition-all active:scale-90`}
+            >
+              <Zap size={24} fill="currentColor" />
+              <span className="text-[10px] font-bold mt-1 uppercase tracking-tighter">Update</span>
+            </button>
+            <button
+              onClick={() => setView('EXPENSES')}
+              className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl transition-all ${view === 'EXPENSES' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}
+            >
+              <ShoppingBag size={24} />
+              <span className="text-[10px] font-bold mt-1">Spend</span>
+            </button>
+            <button
+              onClick={() => setView('REPORTS')}
+              className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl transition-all ${view === 'REPORTS' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}
+            >
+              <BarChart size={24} />
+              <span className="text-[10px] font-bold mt-1">Reports</span>
+            </button>
           </div>
         </nav>
       )}
 
-      {/* Main Content */}
-      <main className={`flex-1 w-full ${view === 'PRINTABLE_REPORT' ? '' : 'max-w-7xl mx-auto p-4 md:p-8'}`}>
+      {/* Main Content Area */}
+      <main className={`flex-1 w-full overflow-y-auto ${view === 'PRINTABLE_REPORT' ? '' : 'max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8'}`}>
 
         {view === 'DASHBOARD' && (
           <Dashboard

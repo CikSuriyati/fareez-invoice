@@ -15,11 +15,10 @@ const postData = async (data) => {
     return await response.json();
 };
 
-export const scanReceiptAPI = async (base64Image, apiKey) => {
+export const scanReceiptAPI = async (base64Image) => {
     const payload = {
         action: 'SCAN_RECEIPT',
-        image: base64Image,
-        apiKey: apiKey
+        image: base64Image
     };
     return await postData(payload);
 };

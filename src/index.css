@@ -3,7 +3,13 @@
 @tailwind utilities;
 
 body {
-    background-color: #f3f4f6;
+    background-color: #f8fafc; /* bg-slate-50 */
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    color: #1e293b; /* text-slate-800 */
+}
+
+* {
+    font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
 /* Mobile Optimization */
