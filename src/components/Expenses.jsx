@@ -193,7 +193,7 @@ const Expenses = () => {
                     setShowItemsTable(false);
                     setExtractedItems([]);
                     setFormData({
-                        projectId: '', refNo: '', store: '', desc: '', qty: 1, unitPrice: 0, category: 'Material'
+                        projectId: '', refNo: '', store: '', desc: '', qty: 1, unitPrice: 0, category: 'Material', date: new Date().toISOString().split('T')[0]
                     });
                     setReceiptFile(null);
                     setReceiptFilePreview(null);
@@ -235,7 +235,7 @@ const Expenses = () => {
                     alert("Expense Saved!");
                     setShowForm(false);
                     setFormData({
-                        projectId: '', refNo: '', store: '', desc: '', qty: 1, unitPrice: 0, category: 'Material'
+                        projectId: '', refNo: '', store: '', desc: '', qty: 1, unitPrice: 0, category: 'Material', date: new Date().toISOString().split('T')[0]
                     });
                     setReceiptFile(null);
                     setReceiptFilePreview(null);
