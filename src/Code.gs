@@ -1127,16 +1127,23 @@ function getDashboardStats(period) {
     }
   }
 
-  return jsonResponse({
-    sales: totalSales,
-    collected: totalCollected,
-    expenses: totalExpenses,
-    net: (totalCollected - totalExpenses),
-    unpaid: totalUnpaid,
-    recent: recentProjects,
-    period: period || 'MONTH'
-  });
-}
+  // --- GET MONTHLY TRENDS ---
+    if (requestData.action === 'getMonthlyTrends') {
+      return getMonthlyTrends(requestData.year);
+    }
+
+    // --- GET EXPENSES (with filter) ---
+    if (requestData.action === 'getExpenses') {
+      return getExpenses(requestData.period);
+    }
+
+    // --- GET MONTHLY TRENDS ---
+    if (requestData.action === 'getMonthlyTrends') {
+      return getMonthlyTrends(requestData.year);
+    }
+    
+    // ... rest ...
+
 
 // -------------------------------------------------------------
 // LEGACY HANDYMAN TOOLS AUTOMATION
@@ -1468,6 +1475,74 @@ function generatePDFfromData(projectData, lineItems, docType) {
   } catch (e) {
     throw new Error("PDF Generation Failed: " + e.toString());
   }
+}
+
+function getMonthlyTrends(year) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var targetYear = year || new Date().getFullYear();
+  
+  // Initialize 12 months data
+  var monthlyData = [];
+  var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  
+  for (var m = 0; m < 12; m++) {
+    monthlyData.push({
+      month: monthNames[m],
+      revenue: 0,
+      expenses: 0,
+      profit: 0
+    });
+  }
+  
+  // 1. PROJECT REVENUE
+  var pSheet = ss.getSheetByName(SHEET_PROJECTS);
+  if (pSheet) {
+    var pData = pSheet.getDataRange().getValues();
+    for (var i = 1; i < pData.length; i++) {
+        var row = pData[i];
+        if (!row[0]) continue;
+        var date = new Date(row[0]);
+        if (date.getFullYear() == targetYear) {
+            var status = String(row[12]).toUpperCase();
+            var type = String(row[7]).toUpperCase();
+            if (status !== 'CANCELLED' && !type.includes('QUOTATION')) {
+                var total = Number(row[9]) || 0;
+                var discount = Number(row[14]) || 0;
+                var netRevenue = total - discount;
+                
+                var monthIdx = date.getMonth(); 
+                if (monthIdx >= 0 && monthIdx < 12) {
+                    monthlyData[monthIdx].revenue += netRevenue;
+                }
+            }
+        }
+    }
+  }
+  
+  // 2. EXPENSES
+  var eSheet = ss.getSheetByName(SHEET_EXPENSES);
+  if (eSheet) {
+    var eData = eSheet.getDataRange().getValues();
+    for (var k = 1; k < eData.length; k++) {
+       var eRow = eData[k];
+       if (!eRow[0]) continue;
+       var eDate = new Date(eRow[0]);
+       if (eDate.getFullYear() == targetYear) {
+          var amount = Number(eRow[7]) || 0;
+          var monthIdx = eDate.getMonth();
+          if (monthIdx >= 0 && monthIdx < 12) {
+             monthlyData[monthIdx].expenses += amount;
+          }
+       }
+    }
+  }
+  
+  // 3. CALCULATE NET PROFIT
+  for (var m = 0; m < 12; m++) {
+    monthlyData[m].profit = monthlyData[m].revenue - monthlyData[m].expenses;
+  }
+  
+  return jsonResponse({ trends: monthlyData, year: targetYear });
 }
 
 // Helper: Save PDF to Drive with Version Control

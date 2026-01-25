@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { fetchExpenses, saveExpense, fetchInventoryStats, fetchProjectAnalytics } from '../services/sheetApi';
-import { Plus, Filter, ShoppingBag, PieChart, TrendingUp, Search, AlertCircle, ArrowUpRight, ArrowDownRight, Camera, X, Loader, Upload } from 'lucide-react';
+import { fetchExpenses, saveExpense, fetchInventoryStats, fetchProjectAnalytics, fetchMonthlyTrends } from '../services/sheetApi';
+import { Plus, Filter, ShoppingBag, PieChart, TrendingUp, Search, AlertCircle, ArrowUpRight, ArrowDownRight, Camera, X, Loader, Upload, BarChart2 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 const Expenses = () => {
     const [view, setView] = useState('LIST'); // 'LIST' or 'ANALYTICS'
@@ -15,6 +16,7 @@ const Expenses = () => {
     // Analytics State
     const [inventoryValue, setInventoryValue] = useState(0);
     const [projectAnalytics, setProjectAnalytics] = useState([]);
+    const [trends, setTrends] = useState([]); // New state for graph
     const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
     // Receipt Scanning State
@@ -82,9 +84,16 @@ const Expenses = () => {
 
     const loadAnalytics = async () => {
         setAnalyticsLoading(true);
-        const result = await fetchProjectAnalytics(filter);
-        if (result && result.projects) {
-            setProjectAnalytics(result.projects);
+        const [projResult, trendResult] = await Promise.all([
+            fetchProjectAnalytics(filter),
+            fetchMonthlyTrends(new Date().getFullYear())
+        ]);
+
+        if (projResult && projResult.projects) {
+            setProjectAnalytics(projResult.projects);
+        }
+        if (trendResult && trendResult.trends) {
+            setTrends(trendResult.trends);
         }
         setAnalyticsLoading(false);
     };
@@ -506,6 +515,31 @@ const Expenses = () => {
             {/* ANALYTICS VIEW */}
             {view === 'ANALYTICS' && (
                 <div className="space-y-8 animate-fadeIn">
+
+
+                    {/* 0. TRENDS GRAPH */}
+                    <div className="bg-white p-6 rounded-lg shadow mb-6">
+                        <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
+                            <BarChart2 className="text-indigo-600" size={20} /> Monthly Financial Performance ({new Date().getFullYear()})
+                        </h3>
+                        <div className="h-[300px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={trends} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                                    <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} />
+                                    <Tooltip
+                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                        formatter={(value, name) => [`RM ${value.toFixed(2)}`, name === 'profit' ? 'Net Profit' : name === 'expenses' ? 'Expenses' : name]}
+                                    />
+                                    <Legend />
+                                    <ReferenceLine y={0} stroke="#e5e7eb" />
+                                    <Bar dataKey="profit" name="Net Profit" fill="#4f46e5" radius={[4, 4, 0, 0]} barSize={20} />
+                                    <Bar dataKey="expenses" name="Expenses" fill="#f87171" radius={[4, 4, 0, 0]} barSize={20} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
 
                     {/* 1. TOP CARDS */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

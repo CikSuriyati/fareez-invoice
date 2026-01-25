@@ -303,3 +303,15 @@ export const saveInvoicePDF = async (projectId, type, base64) => {
         return { error: e.message };
     }
 };
+
+export const fetchMonthlyTrends = async (year) => {
+    try {
+        const y = year || new Date().getFullYear();
+        const response = await fetch(`${API_URL}?action=getMonthlyTrends&year=${y}`);
+        return await response.json();
+    } catch (e) {
+        console.error("Failed to fetch trends:", e);
+        return { trends: [] };
+    }
+};
+
