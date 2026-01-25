@@ -42,7 +42,8 @@ const Expenses = () => {
         desc: '',
         qty: 1,
         unitPrice: 0,
-        category: 'Material' // Default
+        category: 'Material', // Default
+        date: new Date().toISOString().split('T')[0] // Default to Today
     });
 
     useEffect(() => {
@@ -55,6 +56,9 @@ const Expenses = () => {
         const data = await fetchExpenses(filter);
         if (data && data.expenses) {
             setExpenses(data.expenses);
+            if (data.debug) {
+                console.log('Filter Debug:', data.debug);
+            }
         }
 
         // 2. Fetch Inventory Stats (only once or always? fast enough)
@@ -168,7 +172,8 @@ const Expenses = () => {
                         qty: item.qty,
                         unitPrice: item.unitPrice,
                         amount: amount,
-                        category: formData.category || 'Material'
+                        category: formData.category || 'Material',
+                        date: formData.date
                     };
 
                     const success = await saveExpense(payload, receiptData, null);
@@ -203,7 +208,8 @@ const Expenses = () => {
                 const payload = {
                     ...formData,
                     amount: amount,
-                    category: formData.category || 'Material'
+                    category: formData.category || 'Material',
+                    date: formData.date
                 };
 
                 // Convert receipt file to base64 if present
@@ -643,6 +649,10 @@ const Expenses = () => {
                                         <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Price (RM)</label>
                                         <input type="number" name="unitPrice" min="0" step="0.01" value={formData.unitPrice} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none" />
                                     </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Date</label>
+                                    <input type="date" name="date" required value={formData.date} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none" />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Ref No</label>

@@ -388,7 +388,16 @@ function getExpenses(period) {
     }
   }
   
-  return jsonResponse({ expenses: expenses });
+  return jsonResponse({ 
+      expenses: expenses,
+      debug: {
+        filter: period,
+        start: pStart.toString(),
+        end: pEnd.toString(),
+        serverTime: now.toString(),
+        timeZone: Session.getScriptTimeZone()
+      }
+  });
 }
 
 function dateToStr(d) {
@@ -572,7 +581,7 @@ function doPost(e) {
       // Col J: Receipt Link (NEW)
 
       var row = [
-        new Date(),                 // Date (A)
+        exp.date ? new Date(exp.date) : new Date(), // Date (A) - User provided or Now
         exp.projectId || "",        // Project ID (B)
         exp.refNo || "",            // Receipt/Invoice No (C)
         exp.store || "",            // Store (D)
