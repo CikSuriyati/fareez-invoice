@@ -514,7 +514,7 @@ const Expenses = () => {
 
             {/* ANALYTICS VIEW */}
             {view === 'ANALYTICS' && (
-                <div className="space-y-8 animate-fadeIn">
+                <div className="space-y-8">
 
 
                     {/* 0. TRENDS GRAPH */}
@@ -522,8 +522,8 @@ const Expenses = () => {
                         <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
                             <BarChart2 className="text-indigo-600" size={20} /> Monthly Financial Performance ({new Date().getFullYear()})
                         </h3>
-                        <div className="h-[300px] w-full min-h-[300px]">
-                            <ResponsiveContainer width="99%" height="100%" minWidth={100} minHeight={100}>
+                        <div style={{ width: '100%', height: 300, minHeight: 300 }}>
+                            <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={trends} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#9ca3af' }} />
