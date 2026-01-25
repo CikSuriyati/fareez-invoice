@@ -20,6 +20,8 @@ function doGet(e) {
     return getDashboardStats(e.parameter.period);
   } else if (action === "getExpenses") {
     return getExpenses(e.parameter.period); // PASS PERIOD HERE
+  } else if (action === "getMonthlyTrends") {
+    return getMonthlyTrends(e.parameter.year);
   } else if (action === "getProjectProfit") {
     return getProjectProfit(e.parameter.id);
   } else if (action === "getInventoryStats") {
@@ -1127,22 +1129,17 @@ function getDashboardStats(period) {
     }
   }
 
-  // --- GET MONTHLY TRENDS ---
-    if (requestData.action === 'getMonthlyTrends') {
-      return getMonthlyTrends(requestData.year);
-    }
-
-    // --- GET EXPENSES (with filter) ---
-    if (requestData.action === 'getExpenses') {
-      return getExpenses(requestData.period);
-    }
-
-    // --- GET MONTHLY TRENDS ---
-    if (requestData.action === 'getMonthlyTrends') {
-      return getMonthlyTrends(requestData.year);
-    }
-    
-    // ... rest ...
+  // Return the stats
+  return jsonResponse({
+    sales: totalSales,
+    collected: totalCollected,
+    expenses: totalExpenses,
+    net: (totalCollected - totalExpenses),
+    unpaid: totalUnpaid,
+    recent: recentProjects,
+    period: period || 'MONTH'
+  });
+}
 
 
 // -------------------------------------------------------------
@@ -1479,21 +1476,38 @@ function generatePDFfromData(projectData, lineItems, docType) {
 
 function getMonthlyTrends(year) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var targetYear = year || new Date().getFullYear();
+  var targetYear = year; // Can be 'ALL' or a specific year (e.g. 2025)
+  if (!targetYear) targetYear = new Date().getFullYear();
   
-  // Initialize 12 months data
   var monthlyData = [];
-  var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var monthMap = {}; // Key: "YYYY-MM", Value: { month: "Jan 2025", revenue: 0, ... }
   
-  for (var m = 0; m < 12; m++) {
-    monthlyData.push({
-      month: monthNames[m],
-      revenue: 0,
-      expenses: 0,
-      profit: 0
-    });
+  // Helper to get key/label
+  function getKey(date) {
+    var y = date.getFullYear();
+    var m = date.getMonth(); // 0-11
+    var padM = String(m + 1).padStart(2, '0');
+    return y + "-" + padM;
   }
   
+  function getLabel(date) {
+    var months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return months[date.getMonth()] + " " + date.getFullYear();
+  }
+
+  // initialize if specific year
+  if (targetYear !== 'ALL') {
+     var monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+     for (var m = 0; m < 12; m++) {
+       monthlyData.push({
+         month: monthNames[m],
+         revenue: 0,
+         expenses: 0,
+         profit: 0
+       });
+     }
+  }
+
   // 1. PROJECT REVENUE
   var pSheet = ss.getSheetByName(SHEET_PROJECTS);
   if (pSheet) {
@@ -1502,7 +1516,12 @@ function getMonthlyTrends(year) {
         var row = pData[i];
         if (!row[0]) continue;
         var date = new Date(row[0]);
-        if (date.getFullYear() == targetYear) {
+        
+        var match = false;
+        if (targetYear === 'ALL') match = true;
+        else if (date.getFullYear() == targetYear) match = true;
+        
+        if (match) {
             var status = String(row[12]).toUpperCase();
             var type = String(row[7]).toUpperCase();
             if (status !== 'CANCELLED' && !type.includes('QUOTATION')) {
@@ -1510,9 +1529,13 @@ function getMonthlyTrends(year) {
                 var discount = Number(row[14]) || 0;
                 var netRevenue = total - discount;
                 
-                var monthIdx = date.getMonth(); 
-                if (monthIdx >= 0 && monthIdx < 12) {
-                    monthlyData[monthIdx].revenue += netRevenue;
+                if (targetYear === 'ALL') {
+                   var key = getKey(date);
+                   if (!monthMap[key]) monthMap[key] = { month: getLabel(date), revenue: 0, expenses: 0, profit: 0, sortKey: key };
+                   monthMap[key].revenue += netRevenue;
+                } else {
+                   var monthIdx = date.getMonth(); 
+                   if (monthIdx >= 0 && monthIdx < 12) monthlyData[monthIdx].revenue += netRevenue;
                 }
             }
         }
@@ -1527,19 +1550,39 @@ function getMonthlyTrends(year) {
        var eRow = eData[k];
        if (!eRow[0]) continue;
        var eDate = new Date(eRow[0]);
-       if (eDate.getFullYear() == targetYear) {
+       
+        var match = false;
+        if (targetYear === 'ALL') match = true;
+        else if (eDate.getFullYear() == targetYear) match = true;
+
+       if (match) {
           var amount = Number(eRow[7]) || 0;
-          var monthIdx = eDate.getMonth();
-          if (monthIdx >= 0 && monthIdx < 12) {
-             monthlyData[monthIdx].expenses += amount;
+          if (targetYear === 'ALL') {
+             var key = getKey(eDate);
+             if (!monthMap[key]) monthMap[key] = { month: getLabel(eDate), revenue: 0, expenses: 0, profit: 0, sortKey: key };
+             monthMap[key].expenses += amount;
+          } else {
+             var monthIdx = eDate.getMonth();
+             if (monthIdx >= 0 && monthIdx < 12) monthlyData[monthIdx].expenses += amount;
           }
        }
     }
   }
   
-  // 3. CALCULATE NET PROFIT
-  for (var m = 0; m < 12; m++) {
-    monthlyData[m].profit = monthlyData[m].revenue - monthlyData[m].expenses;
+  // 3. FINALIZE
+  if (targetYear === 'ALL') {
+     // Convert map to array and sort
+     var keys = Object.keys(monthMap).sort();
+     for (var i = 0; i < keys.length; i++) {
+        var item = monthMap[keys[i]];
+        item.profit = item.revenue - item.expenses;
+        monthlyData.push(item);
+     }
+  } else {
+     // Calc profit for fixed months
+     for (var m = 0; m < 12; m++) {
+       monthlyData[m].profit = monthlyData[m].revenue - monthlyData[m].expenses;
+     }
   }
   
   return jsonResponse({ trends: monthlyData, year: targetYear });

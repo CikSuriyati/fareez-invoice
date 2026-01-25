@@ -84,9 +84,12 @@ const Expenses = () => {
 
     const loadAnalytics = async () => {
         setAnalyticsLoading(true);
+        // Determine year to fetch: if filter is ALL, pass 'ALL', else current year
+        const trendYear = filter === 'ALL' ? 'ALL' : new Date().getFullYear();
+
         const [projResult, trendResult] = await Promise.all([
             fetchProjectAnalytics(filter),
-            fetchMonthlyTrends(new Date().getFullYear())
+            fetchMonthlyTrends(trendYear)
         ]);
 
         if (projResult && projResult.projects) {
@@ -520,7 +523,7 @@ const Expenses = () => {
                     {/* 0. TRENDS GRAPH */}
                     <div className="bg-white p-6 rounded-lg shadow mb-6">
                         <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
-                            <BarChart2 className="text-indigo-600" size={20} /> Monthly Financial Performance ({new Date().getFullYear()})
+                            <BarChart2 className="text-indigo-600" size={20} /> Monthly Financial Performance ({filter === 'ALL' ? 'All Time' : new Date().getFullYear()})
                         </h3>
                         <div style={{ width: '100%', height: 300, minHeight: 300 }}>
                             <ResponsiveContainer width="100%" height="100%">
