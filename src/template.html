@@ -3,6 +3,9 @@
 
 <head>
     <base target="_top">
+    <!-- Import Plus Jakarta Sans for the totals section -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
     <style>
         body {
             font-family: 'Helvetica', 'Arial', sans-serif;
@@ -10,378 +13,560 @@
             margin: 0;
             padding: 0;
             font-size: 11px;
+            background: white;
+            -webkit-font-smoothing: antialiased;
         }
 
-        .header {
-            background: #1A237E;
-            color: white;
-            padding: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .invoice-preview-container {
+            width: 210mm;
+            margin: 0 auto;
+            background: white;
         }
 
-        .logo-container {
-            display: flex;
-            align-items: center;
-            gap: 15px;
+        /* Modern Header */
+        .header-table {
+            width: 100%;
+            border-bottom: 2px solid #000;
+            padding: 8px 45px 12px 45px;
+            border-collapse: collapse;
+        }
+
+        .logo-cell {
+            vertical-align: middle;
         }
 
         .text-logo {
             font-family: 'Times New Roman', serif;
-            font-size: 48px;
-            color: white;
+            font-size: 52px;
+            color: #000;
             margin: 0;
+            margin-top: -5px;
+            line-height: 0.9;
+            font-weight: bold;
+            display: inline-block;
         }
 
         .company-info {
-            font-size: 11px;
+            font-size: 10px;
             line-height: 1.3;
+            color: #333;
+            margin-left: 15px;
+            display: inline-block;
+            vertical-align: middle;
+            text-align: left;
         }
 
-        h1 {
+        .invoice-title-cell {
+            text-align: right;
+            vertical-align: middle;
+        }
+
+        .invoice-title {
             margin: 0;
             font-size: 24px;
-            letter-spacing: 2px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: #000;
         }
 
-        .container {
-            padding: 20px;
+        .invoice-body {
+            padding: 15px 45px;
         }
 
-        .info-section {
-            display: flex;
-            margin-bottom: 20px;
+        /* Info Section Table */
+        .info-table {
+            width: 100%;
+            margin-bottom: 12px;
+            border-collapse: collapse;
         }
 
         .client-box {
             width: 60%;
+            vertical-align: top;
+            line-height: 1.4;
+            padding-top: 5px;
         }
 
         .meta-box {
             width: 40%;
+            vertical-align: top;
+            text-align: right;
+            line-height: 1.4;
+            padding-top: 5px;
+        }
+
+        .bill-to-label {
+            font-size: 10px;
+            color: #666;
+            font-weight: 800;
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .customer-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: #000;
+        }
+
+        /* Items Table */
+        .invoice-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
+        }
+
+        .invoice-table th {
+            background: white;
+            color: #000;
+            padding: 5px 8px;
+            font-size: 10px;
+            text-transform: uppercase;
+            text-align: left;
+            border-bottom: 2px solid #000;
+            border-top: 1px solid #eee;
+        }
+
+        .invoice-table td {
+            padding: 4px 8px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 10px;
+            color: #444;
+        }
+
+        .text-right {
             text-align: right;
         }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
+        .text-center {
+            text-align: center;
         }
 
-        th {
-            background: #1A237E;
+        /* Totals Area Table-Based Construction to ensure pixel-perfect match */
+        .totals-area {
+            margin-top: 5px;
+            width: 100%;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        .totals-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .label-cell {
+            width: 85%;
+            text-align: right;
+            padding-right: 15px;
+            font-size: 11px;
+            font-weight: 500;
+            color: #64748b;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .value-cell {
+            width: 15%;
+            text-align: right;
+            padding: 2px 8px;
+            font-weight: 700;
+            font-size: 11px;
+            color: #0f172a;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        /* Total Amount (Black Bar) */
+        .grand-total-label {
+            background: #0f172a;
+            padding: 4px 15px;
             color: white;
-            padding: 6px 8px;
-            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            border-top-left-radius: 6px;
+            border-bottom-left-radius: 6px;
+            text-align: right;
+            font-size: 11px;
+        }
+
+        .grand-total-value {
+            background: #f8fafc;
+            padding: 4px 8px;
+            text-align: right;
+            font-weight: 900;
+            color: #0f172a;
+            border-top: 2px solid #0f172a;
+            border-bottom-right-radius: 6px;
+            font-size: 11px;
+        }
+
+        /* Paid/Deposit (Green Accents) */
+        .deposit-label {
+            color: #047857;
+            font-weight: 700;
+            padding: 4px 15px;
+            text-transform: uppercase;
+            text-align: right;
+            font-size: 11px;
+        }
+
+        .deposit-value {
+            background: #f0fdf4;
+            color: #047857;
+            font-weight: 700;
+            padding: 4px 8px;
+            text-align: right;
+            border: 1px solid #dcfce7;
+            border-radius: 6px;
+            font-size: 11px;
+        }
+
+        /* Balance Due (Blue Accent) */
+        .balance-label-btn {
+            background: #2563eb;
+            color: white;
+            padding: 6px 15px;
+            font-weight: 900;
+            text-transform: uppercase;
+            font-style: italic;
+            border-top-left-radius: 8px;
+            border-bottom-left-radius: 8px;
+            text-align: right;
+            font-size: 11px;
+        }
+
+        .balance-value-btn {
+            background: #eff6ff;
+            border: 2px solid #2563eb;
+            border-left: 0;
+            color: #1d4ed8;
+            padding: 5.5px 8px;
+            text-align: right;
+            font-weight: 900;
+            border-top-right-radius: 8px;
+            border-bottom-right-radius: 8px;
+            font-size: 11px;
+        }
+
+        /* Quotation Hint */
+        .quote-hint-label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            font-weight: 700;
+            text-align: right;
+            padding-right: 15px;
+        }
+
+        .quote-hint-value {
+            background: #f8fafc;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-weight: 700;
+            color: #0f172a;
+            text-align: right;
+            font-size: 11px;
+        }
+
+        /* Metadata Status Badge */
+        .status-paid {
+            color: #059669;
+            font-weight: bold;
             text-transform: uppercase;
         }
 
-        td {
-            padding: 6px 8px;
-            border-bottom: 1px solid #ddd;
-            font-size: 10px;
+        .status-partial {
+            color: #f59e0b;
+            font-weight: bold;
+            text-transform: uppercase;
         }
 
-        tr:nth-child(even) {
-            background: #f2f2f2;
+        .status-unpaid {
+            color: #dc2626;
+            font-weight: bold;
+            text-transform: uppercase;
         }
 
-        .total-section {
+        /* Legal Footer */
+        .legal-footer {
+            padding: 0 45px 30px 45px;
             margin-top: 20px;
-            text-align: right;
         }
 
-        .total-label {
-            font-weight: bold;
-            font-size: 12px;
-            margin-right: 15px;
+        .footer-line {
+            border-top: 2px solid #ddd;
+            padding-top: 10px;
         }
 
-        .total-amount {
-            font-size: 18px;
-            color: #1A237E;
-            font-weight: bold;
+        .footer-split-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 8px;
         }
 
-        .footer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: #f9f9f9;
-            padding: 10px 20px;
-            font-size: 9px;
+        .payment-details {
+            width: 45%;
+            font-size: 10.5px;
+            vertical-align: top;
+            line-height: 1.4;
+        }
+
+        .disclaimer {
+            width: 55%;
+            font-size: 9.5px;
+            color: #666;
+            border-left: 1px solid #eee;
+            padding-left: 12px;
+            text-align: justify;
+            vertical-align: top;
+            line-height: 1.3;
+        }
+
+        .terms-section {
+            border-top: 1px solid #eee;
+            padding-top: 8px;
+            font-size: 8.5px;
+            color: #444;
+        }
+
+        .terms-list {
+            padding-left: 18px;
+            margin: 0;
+            line-height: 1.25;
+            list-style-type: disc;
+        }
+
+        .absolute-footer {
             text-align: center;
+            padding: 10px 0;
+            font-size: 9px;
+            color: #666;
             border-top: 2px solid #000;
-        }
-
-        .stamp {
-            position: absolute;
-            top: 40px;
-            right: 40px;
-            font-size: 40px;
-            font-weight: 900;
-            opacity: 0.15;
-            transform: rotate(-20deg);
-            padding: 10px 20px;
-            border: 4px solid;
-            border-radius: 8px;
-        }
-
-        .paid {
-            color: green;
-            border-color: green;
-        }
-
-        .partial {
-            color: orange;
-            border-color: orange;
-        }
-
-        .unpaid {
-            color: red;
-            border-color: red;
+            margin-top: 15px;
+            font-style: italic;
         }
     </style>
 </head>
 
 <body>
-    <div class="header">
-        <div class="logo-container">
-            <div class="text-logo">FF</div>
-            <div class="company-info">
-                <strong>FAREEZ INSTALLATION SERVICES</strong><br>
-                No 9 Jalan PJU10/1 Damansara Damai<br>
-                47830 Petaling Jaya Selangor<br>
-                Phone: +60 11-2549 5182<br>
-                Email: fareezfauzimy@gmail.com
-            </div>
-        </div>
-        <? if (type === 'INVOICE') { ?>
-        <? if (status === 'PAID') { ?>
-        <div class="stamp paid">PAID</div>
-        <? } else if (status === 'PARTIAL') { ?>
-        <div class="stamp partial">PARTIALLY PAID</div>
-        <? } else { ?>
-        <div class="stamp unpaid">UNPAID</div>
-        <? } ?>
-        <? } ?>
-        <? if (type === 'RECEIPT') { ?>
-        <? if (status === 'PAID') { ?>
-        <div class="stamp paid">PAID</div>
-        <? } else if (status === 'PARTIAL') { ?>
-        <div class="stamp partial">PARTIALLY PAID</div>
-        <? } else { ?>
-        <div class="stamp unpaid">UNPAID</div>
-        <? } ?>
-        <? } ?>
-        <h1>
-            <?= type ?>
-        </h1>
-    </div>
-    <div class="container">
-        <div class="info-section">
-            <div class="client-box">
-                <strong>BILL TO:</strong><br>
-                <?= project.customer ?><br>
-                <?= project.address ?><br>
-                <?= project.email ?><br>
-                <?= project.phone ?>
-            </div>
-            <div class="meta-box">
-                <strong>DATE:</strong>
-                <?= project.date ?><br>
-                <strong>DOC ID:</strong>
-                <?= project.id ?><br>
-                <strong>STATUS:</strong> Generated
-            </div>
-        </div>
-        <table>
-            <thead>
-                <tr>
-                    <th width="15%">Room / Area</th>
-                    <th width="20%">Installation Type</th>
-                    <th width="30%">Description</th>
-                    <th width="12%">Unit Price (RM)</th>
-                    <th width="8%">Qty</th>
-                    <th width="15%">Total (RM)</th>
-                </tr>
-            </thead>
-            <tbody>
-                <? 
-var lastRoom="";
-var lastType="";
-var minRows=12;
-for (var i=0; i<items.length; i++) {
-  var showRoom = (items[i].room !== lastRoom);
-  var showType = (items[i].type !== lastType || showRoom);
-  lastRoom = items[i].room;
-  lastType = items[i].type;
-?>
-                <tr>
-                    <td><strong>
-                            <?= showRoom ? items[i].room : "" ?>
-                        </strong></td>
-                    <td>
-                        <?= showType ? items[i].type : "" ?>
-                    </td>
-                    <td>
-                        <?= items[i].desc ?>
-                    </td>
-                    <td>
-                        <?= items[i].unitPrice.toFixed(2) ?>
-                    </td>
-                    <td>
-                        <?= items[i].qty ?>
-                    </td>
-                    <td><strong>
-                            <?= items[i].total.toFixed(2) ?>
-                        </strong></td>
-                </tr>
-                <? } ?>
-                <? for (var j = items.length; j < minRows; j++) { ?>
-                <tr style="height:22px;">
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                </tr>
-                <? } ?>
-            </tbody>
+    <div class="invoice-preview-container">
+        <table class="header-table">
+            <tr>
+                <td class="logo-cell">
+                    <div class="text-logo">FF</div>
+                    <div class="company-info">
+                        <strong>FAREEZ INSTALLATION SERVICES</strong><br>
+                        No 9 Jalan PJU10/1 Damansara Damai<br>
+                        47830 Petaling Jaya Selangor<br>
+                        Phone: +60 11-2549 5182<br>
+                        Email: fareezfauzimy@gmail.com
+                    </div>
+                </td>
+                <td class="invoice-title-cell">
+                    <h2 class="invoice-title">
+                        <?= type ?>
+                    </h2>
+                </td>
+            </tr>
         </table>
-        <div class="total-section">
-            <? if (type === 'QUOTATION') { ?>
-            <!-- QUOTATION FORMAT -->
-            <? if (discount > 0) { ?>
-            <!-- With Discount -->
-            <div>
-                <span class="total-label">SUB-TOTAL:</span>
-                <span class="total-amount">RM
-                    <?= subtotal.toFixed(2) ?>
-                </span>
+
+        <div class="invoice-body">
+            <table class="info-table">
+                <tr>
+                    <td class="client-box">
+                        <span class="bill-to-label">Bill To:</span>
+                        <div class="customer-name">
+                            <?= project.customer ?>
+                        </div>
+                        <div style="margin-top: 2px; color: #444;">
+                            <?= project.address ?>
+                        </div>
+                        <div style="margin-top: 2px;">
+                            <?= project.phone ?>
+                        </div>
+                        <div style="color: #2563eb;">
+                            <?= project.email ?>
+                        </div>
+                    </td>
+                    <td class="meta-box">
+                        <div><span style="color: #666; font-weight: bold;">Date:</span>
+                            <?= project.date ?>
+                        </div>
+                        <div><span style="color: #666; font-weight: bold;">Document ID:</span>
+                            <?= project.id ?>
+                        </div>
+                        <div><span style="color: #666; font-weight: bold;">Status:</span>
+                            <span
+                                class="<?= status === 'PAID' ? 'status-paid' : (status === 'PARTIAL' ? 'status-partial' : 'status-unpaid') ?>">
+                                <?= status ?>
+                            </span>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+            <table class="invoice-table">
+                <thead>
+                    <tr>
+                        <th width="15%">Room / Area</th>
+                        <th width="20%">Installation Type</th>
+                        <th width="35%">Description</th>
+                        <th width="10%" class="text-right">Price (RM)</th>
+                        <th width="5%" class="text-center">Qty</th>
+                        <th width="15%" class="text-right">Total (RM)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <? 
+          var lastRoom="";
+          var lastType="";
+          var minRows=12;
+          for (var i=0; i<items.length; i++) {
+            var showRoom = (items[i].room !== lastRoom);
+            var showType = (items[i].type !== lastType || showRoom);
+            lastRoom = items[i].room;
+            lastType = items[i].type;
+          ?>
+                    <tr>
+                        <td style="font-weight: bold;">
+                            <?= showRoom ? items[i].room : "" ?>
+                        </td>
+                        <td>
+                            <?= showType ? items[i].type : "" ?>
+                        </td>
+                        <td>
+                            <?= items[i].desc ?>
+                        </td>
+                        <td class="text-right">
+                            <?= items[i].unitPrice.toFixed(2) ?>
+                        </td>
+                        <td class="text-center">
+                            <?= items[i].qty ?>
+                        </td>
+                        <td style="font-weight: bold; color: #000;" class="text-right">
+                            <?= items[i].total.toFixed(2) ?>
+                        </td>
+                    </tr>
+                    <? } ?>
+                    <? for (var j = items.length; j < minRows; j++) { ?>
+                    <tr style="height:18px;">
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                        <td>&nbsp;</td>
+                    </tr>
+                    <? } ?>
+                </tbody>
+            </table>
+
+            <div class="totals-area">
+                <table class="totals-table">
+                    <!-- Subtotal -->
+                    <tr>
+                        <td class="label-cell">Subtotal</td>
+                        <td class="value-cell">RM
+                            <?= subtotal.toFixed(2) ?>
+                        </td>
+                    </tr>
+                    <!-- Discount -->
+                    <? if (discount > 0) { ?>
+                    <tr>
+                        <td class="label-cell" style="color: #dc2626">Discount</td>
+                        <td class="value-cell" style="color: #dc2626">- RM
+                            <?= discount.toFixed(2) ?>
+                        </td>
+                    </tr>
+                    <? } ?>
+
+                    <!-- Total Amount (The Bold Black Bar) -->
+                    <tr>
+                        <td style="width: 85%; padding-top: 4px;">
+                            <div class="grand-total-label">Total Amount</div>
+                        </td>
+                        <td style="width: 15%; padding-top: 4px;">
+                            <div class="grand-total-value">RM
+                                <?= netTotal.toFixed(2) ?>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <!-- Payments/Balance Section -->
+                    <? if (type !== 'QUOTATION') { ?>
+                    <tr>
+                        <td class="deposit-label">
+                            <?= type === 'RECEIPT' ? 'Total Paid' : 'Deposit Paid' ?>
+                        </td>
+                        <td class="deposit-value">RM
+                            <?= deposit.toFixed(2) ?>
+                        </td>
+                    </tr>
+
+                    <? if (type === 'INVOICE') { ?>
+                    <tr>
+                        <td style="width: 85%; padding-top: 10px;">
+                            <div class="balance-label-btn">Balance Due</div>
+                        </td>
+                        <td style="width: 15%; padding-top: 10px;">
+                            <div class="balance-value-btn">RM
+                                <?= balance.toFixed(2) ?>
+                            </div>
+                        </td>
+                    </tr>
+                    <? } ?>
+                    <? } else { ?>
+                    <!-- Quotation Hint -->
+                    <tr>
+                        <td class="quote-hint-label" style="padding-top: 8px;">Deposit Required (50%)</td>
+                        <td class="quote-hint-value" style="margin-top: 8px;">RM
+                            <?= (netTotal * 0.5).toFixed(2) ?>
+                        </td>
+                    </tr>
+                    <? } ?>
+                </table>
             </div>
-            <div style="margin-top:5px; color:#d32f2f;">
-                <span class="total-label">DISCOUNT:</span>
-                <span><strong>- RM
-                        <?= discount.toFixed(2) ?>
-                    </strong></span>
-            </div>
-            <div style="margin-top:8px;">
-                <span class="total-label">TOTAL AMOUNT:</span>
-                <span class="total-amount">RM
-                    <?= netTotal.toFixed(2) ?>
-                </span>
-            </div>
-            <? } else { ?>
-            <!-- Without Discount -->
-            <div>
-                <span class="total-label">TOTAL AMOUNT:</span>
-                <span class="total-amount">RM
-                    <?= total.toFixed(2) ?>
-                </span>
-            </div>
-            <? } ?>
-            <div style="color:#666;margin-top:3px;">
-                <span class="total-label">Deposit Required (50%):</span>
-                <span><strong>RM
-                        <?= (netTotal ? (netTotal * 0.5) : (total * 0.5)).toFixed(2) ?>
-                    </strong></span>
-            </div>
-            <? } else { ?>
-            <!-- INVOICE/RECEIPT FORMAT -->
-            <div>
-                <span class="total-label">TOTAL AMOUNT:</span>
-                <span class="total-amount">RM
-                    <?= total.toFixed(2) ?>
-                </span>
-            </div>
-            <? if (discount > 0) { ?>
-            <div style="margin-top:5px; color:#d32f2f;">
-                <span class="total-label">DISCOUNT:</span>
-                <span><strong>- RM
-                        <?= discount.toFixed(2) ?>
-                    </strong></span>
-            </div>
-            <? } ?>
-            <div style="margin-top:5px;">
-                <span class="total-label">
-                    <?= type === 'RECEIPT' ? 'TOTAL PAID:' : 'DEPOSIT PAID:' ?>
-                </span>
-                <span><strong>RM
-                        <?= deposit.toFixed(2) ?>
-                    </strong></span>
-            </div>
-            <? if (type !== 'RECEIPT') { ?>
-            <div style="margin-top:8px;">
-                <span class="total-label">BALANCE DUE:</span>
-                <span class="total-amount">RM
-                    <?= balance.toFixed(2) ?>
-                </span>
-            </div>
-            <? } ?>
-            <? } ?>
         </div>
-        <!-- Payment & Legal Section -->
-        <div style="margin-top: 15px; border-top: 2px solid #ddd; padding-top: 15px;">
-            <div style="margin-bottom: 15px;">
-                <div style="width: 48%; float: left; font-size: 11px;">
-                    <strong>PAYMENT DETAILS</strong><br>
-                    Name: MUHAMMAD FAREEZ BIN MOHD FAUZI<br>
-                    Bank: Maybank<br>
-                    Account Number: 001141316728
+
+        <div class="legal-footer">
+            <div class="footer-line">
+                <table class="footer-split-table">
+                    <tr>
+                        <td class="payment-details">
+                            <strong>PAYMENT DETAILS</strong><br>
+                            Name: MUHAMMAD FAREEZ BIN MOHD FAUZI<br>
+                            Bank: Maybank<br>
+                            Account Number: 001141316728
+                        </td>
+                        <td class="disclaimer">
+                            <strong>DISCLAIMER</strong><br>
+                            All payments must be made to the name/account provided. We (Fareez Installation Services)
+                            will not be held responsible for errors in entering account details or recipient
+                            information.
+                        </td>
+                    </tr>
+                </table>
+                <div class="terms-section">
+                    <strong style="display: block; margin-bottom: 2px;">TERMS & CONDITIONS</strong>
+                    <ul class="terms-list">
+                        <li><strong>Inclusions:</strong> Prices listed are for labor and installation services only.
+                        </li>
+                        <li><strong>Exclusions:</strong> Cost of bulbs, fans, and external materials are not included
+                            unless specified.</li>
+                        <li><strong>Transportation:</strong> fee applies based on location. RM20 base + RM1.50/km.</li>
+                        <li><strong>Liability:</strong> Fareez Installation Services is not responsible for payments to
+                            incorrect details.</li>
+                        <li><strong>Working Hours:</strong> Standard: 9:00 AM – 6:00 PM (Fri–Sun). Jobs must be booked
+                            in advance.</li>
+                        <li><strong>Warranty:</strong> 30-day workmanship warranty from completion.</li>
+                    </ul>
                 </div>
-                <div
-                    style="width: 48%; float: right; font-size: 10px; color: #666; text-align: justify; line-height: 1.2;">
-                    <strong>DISCLAIMER</strong><br>
-                    All payments must be made to the name and account number provided.
-                    Please ensure that the account details are entered correctly.
-                    We (Fareez Installation Services) will not be held responsible for any payments made to an incorrect
-                    account due
-                    to
-                    errors in entering the account number or recipient information.
-                </div>
-                <div style="clear: both;"></div>
-            </div>
-            <div style="border-top: 1px solid #ddd; padding-top: 10px; font-size: 9px; line-height: 1.4;">
-                <strong>TERMS & CONDITIONS</strong>
-                <ul style="padding-left: 15px; margin: 2px 0;">
-                    <li><strong>Inclusions:</strong> Prices listed are for labor and installation services only.</li>
-                    <li><strong>Exclusions:</strong> Cost of light bulbs, fans, and external wiring materials are not
-                        included
-                        unless specified.</li>
-                    <li><strong>Transportation:</strong> A transportation fee applies based on project location. RM20
-                        base fee + RM1.50 per km. Charges exclude parking fees, toll charges, building entry fees, condo
-                        access fees, or special permits. If incurred, they will be added as separate line items in the
-                        same invoice/receipt.</li>
-                    <li><strong>Liability:</strong> Fareez Installation Services is not responsible for payments made to
-                        incorrect
-                        account details.</li>
-                    <li><strong>Working Hours & After-Hours Charges:</strong>
-                        <ul style="padding-left: 15px; margin: 2px 0;">
-                            <li><strong>Standard working hours: </strong> 9:00 AM – 6:00 PM (Friday–Sunday)</li>
-                            <li><strong>Service Availability:</strong> All jobs must be booked in advance. Same-day or
-                                urgent appointments are subject to availability.</li>
-                        </ul>
-                    <li><strong>Workmanship Warranty:</strong>
-                        <ul style="padding-left: 15px; margin: 2px 0;">
-                            <li><strong>Period:</strong> 30-day warranty starting from the date of completion.</li>
-                            <li><strong>Scope:</strong> Covers issues directly related to installation.</li>
-                            <li><strong>Exclusions:</strong> This warranty does not cover manufacturer defects or
-                                internal component
-                                failures of the appliances (fans, lights, etc.). For hardware failures, please refer to
-                                the product's
-                                original manufacturer.</li>
-                        </ul>
-                    </li>
-                </ul>
             </div>
         </div>
-    </div>
-    <div class="footer" style="margin-top: 15px; text-align: center; font-size: 9px; color: #666; font-style: italic;">
-        This document is computer generated and no signature is required.</p>
+
+        <div class="absolute-footer">
+            This document is computer generated and no signature is required.
+        </div>
     </div>
 </body>
 

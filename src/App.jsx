@@ -9,7 +9,7 @@ import Reports from './components/Reports';
 import QuickUpdate from './components/QuickUpdate';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import { saveInvoiceToSheet, fetchNextId, fetchProjectById, sendInvoiceEmail, saveInvoicePDF } from './services/sheetApi';
+import { saveInvoiceToSheet, fetchNextId, fetchProjectById, sendInvoiceEmail, saveInvoicePDF, fetchProjectDocuments, fetchFileData } from './services/sheetApi';
 import { FileText, LayoutDashboard, ShoppingBag, BarChart, Zap, Printer } from 'lucide-react';
 
 function App() {
@@ -19,6 +19,12 @@ function App() {
 
   const [isSending, setIsSending] = useState(false);
   const [isSavingPDF, setIsSavingPDF] = useState(false);
+
+  // Helper: Deep compare to check for changes
+  const isDetailsDirty = (obj1, obj2) => {
+    if (!obj1 || !obj2) return true;
+    return JSON.stringify(obj1) !== JSON.stringify(obj2); // Simple JSON comparison for this use case
+  };
 
   // Helper to capture the preview and generate a PDF
   const captureAndGeneratePDF = async () => {
@@ -224,6 +230,7 @@ function App() {
 
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [recipientEmail, setRecipientEmail] = useState('');
+  const [emailResult, setEmailResult] = useState(null); // { type: 'success'|'error', message: '' }
 
   const handleSendEmail = () => {
     if (!invoiceData.project.id) return alert("Please generate/load a project first.");
@@ -236,14 +243,61 @@ function App() {
 
     setIsSending(true);
     try {
-      // 1. Silent Save to Spreadsheet first
-      await handleSave(invoiceData, true);
+      let pdfBase64 = null;
+      let filename = `${invoiceData.project.id}.pdf`;
+      let isResending = false;
 
-      // 2. Generate PDF using helper
-      const pdfBase64 = await captureAndGeneratePDF();
+      // 1. Check if invoice is modified (Dirty Check)
+      // We compare invoiceData with initialData. 
+      // Note: We strip 'status' from comparison if we want to allow sending regardless of payment status update,
+      // but usually if I update payment status I want a new receipt. 
+      // For now, Strict Equality.
+      const isDirty = isDetailsDirty(invoiceData, initialData);
 
-      // 3. Save a copy to Drive (Backend handles versioning _v2 etc)
-      await saveInvoicePDF(invoiceData.project.id, invoiceData.type, pdfBase64);
+      if (!isDirty && invoiceData.project.id) {
+        console.log("No changes detected. Attempting to fetch existing document...");
+        try {
+          const docsResult = await fetchProjectDocuments(invoiceData.project.id);
+          if (docsResult.result === "success" && docsResult.documents && docsResult.documents.length > 0) {
+            // Find the most recent document of the correct type (Invoice/Receipt)
+            // The backend sorts by date desc, so the first match of type is the latest.
+            // Our 'type' in state is 'INVOICE'/'RECEIPT' etc.
+            // Backend 'type' comes from Folder Name usually (e.g. 'Invoices', 'Receipts').
+            // Let's just look for a file that matches the ID suffix.
+            // Actually, backend returns everything matching the ID.
+            // Let's pick the first one (latest).
+            const latestDoc = docsResult.documents[0];
+            console.log("Found existing document:", latestDoc);
+
+            // Fetch the actual Base64 data
+            const fileResult = await fetchFileData(latestDoc.id);
+            if (fileResult.result === "success" && fileResult.base64) {
+              pdfBase64 = fileResult.base64;
+              filename = fileResult.fileName || filename;
+              isResending = true;
+              console.log("Successfully fetched existing PDF data.");
+            }
+          }
+        } catch (fetchErr) {
+          console.warn("Failed to fetch existing doc, falling back to generation:", fetchErr);
+        }
+      }
+
+      // 2. If no existing doc found OR data is dirty, Generate New
+      if (!pdfBase64) {
+        console.log("Generating NEW PDF version...");
+        // Silent Save to Spreadsheet first
+        await handleSave(invoiceData, true);
+
+        // Generate PDF using helper
+        pdfBase64 = await captureAndGeneratePDF();
+
+        // Save a copy to Drive (Backend handles versioning _v2 etc)
+        await saveInvoicePDF(invoiceData.project.id, invoiceData.type, pdfBase64);
+
+        // Update initialData so subsequent sends effectively see "clean" state
+        setInitialData(JSON.parse(JSON.stringify(invoiceData)));
+      }
 
       // 3. Prepare Email Body
       const emailBody = `
@@ -305,17 +359,33 @@ function App() {
         to: recipientEmail,
         subject: `${invoiceData.type} ${invoiceData.project.id} - Fareez Installation`,
         body: emailBody,
-        filename: `${invoiceData.project.id}.pdf`,
+        filename: filename,
         base64: pdfBase64
       };
 
       await sendInvoiceEmail(payload);
-      alert("Email sent successfully!");
-      setShowEmailModal(false);
+
+      if (isResending) {
+        setEmailResult({
+          type: 'success',
+          message: "✅ EXISTING document sent successfully!\n(No new version created to save space)."
+        });
+      } else {
+        setEmailResult({
+          type: 'success',
+          message: "✅ NEW document generated and sent successfully!"
+        });
+      }
+
+      // Don't close modal, let user read
+      // setShowEmailModal(false);
 
     } catch (e) {
       console.error(e);
-      alert("Failed to send email: " + e.message);
+      setEmailResult({
+        type: 'error',
+        message: "Failed to send email: " + e.message
+      });
     } finally {
       setIsSending(false);
     }
@@ -555,41 +625,65 @@ function App() {
       {/* Email Modal Overlay */}
       {showEmailModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 no-print">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-96">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-96 animate-fadeIn">
             <h3 className="text-lg font-bold mb-4 text-gray-800">Send via Email</h3>
 
-            <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Email</label>
-            <input
-              type="email"
-              value={recipientEmail}
-              onChange={(e) => setRecipientEmail(e.target.value)}
-              className="w-full border p-2 rounded mb-6 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-              placeholder="customer@example.com"
-            />
+            {!emailResult ? (
+              <>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Email</label>
+                <input
+                  type="email"
+                  value={recipientEmail}
+                  onChange={(e) => setRecipientEmail(e.target.value)}
+                  className="w-full border p-2 rounded mb-6 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="customer@example.com"
+                />
 
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowEmailModal(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded text-sm font-medium"
-                disabled={isSending}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmSendEmail}
-                disabled={isSending}
-                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium flex items-center gap-2"
-              >
-                {isSending ? (
-                  <>
-                    <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
-                    Sending...
-                  </>
-                ) : (
-                  'Send Email'
-                )}
-              </button>
-            </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setShowEmailModal(false)}
+                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded text-sm font-medium"
+                    disabled={isSending}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={confirmSendEmail}
+                    disabled={isSending}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium flex items-center gap-2"
+                  >
+                    {isSending ? (
+                      <>
+                        <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                        Sending...
+                      </>
+                    ) : (
+                      'Send Email'
+                    )}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="text-center py-4">
+                <div className={`mx-auto flex items-center justify-center w-12 h-12 rounded-full mb-4 ${emailResult.type === 'success' ? 'bg-green-100' : 'bg-red-100'}`}>
+                  {emailResult.type === 'success' ? (
+                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                  ) : (
+                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                  )}
+                </div>
+                <p className="text-gray-800 font-medium mb-6 whitespace-pre-wrap">{emailResult.message}</p>
+                <button
+                  onClick={() => {
+                    setShowEmailModal(false);
+                    setEmailResult(null); // Reset for next time
+                  }}
+                  className="w-full px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium"
+                >
+                  Close
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

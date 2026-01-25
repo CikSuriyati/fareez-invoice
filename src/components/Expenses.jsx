@@ -671,13 +671,14 @@ const Expenses = () => {
                                         </div>
 
                                         <div className="bg-white rounded-xl border border-indigo-100 overflow-hidden">
-                                            <div className="overflow-x-auto">
+                                            {/* Desktop Table View */}
+                                            <div className="hidden md:block overflow-x-auto">
                                                 <table className="min-w-full text-sm">
                                                     <thead className="bg-slate-50 border-b border-slate-100">
                                                         <tr>
                                                             <th className="px-4 py-3 text-left font-bold text-slate-500">Item</th>
                                                             <th className="px-4 py-3 text-center font-bold text-slate-500 w-20">Qty</th>
-                                                            <th className="px-4 py-3 text-right font-bold text-slate-500 w-28">Pric</th>
+                                                            <th className="px-4 py-3 text-right font-bold text-slate-500 w-28">Price</th>
                                                             <th className="px-4 py-3 text-right font-bold text-slate-500 w-28">Total</th>
                                                             <th className="px-4 py-3 text-center w-12"></th>
                                                         </tr>
@@ -704,6 +705,61 @@ const Expenses = () => {
                                                         ))}
                                                     </tbody>
                                                 </table>
+                                            </div>
+
+                                            {/* Mobile Card View */}
+                                            <div className="md:hidden divide-y divide-slate-100">
+                                                {extractedItems.map((item) => (
+                                                    <div key={item.id} className="p-4 space-y-3">
+                                                        <div className="flex justify-between items-start gap-2">
+                                                            <div className="flex-1">
+                                                                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Description</label>
+                                                                <input
+                                                                    type="text"
+                                                                    value={item.description}
+                                                                    onChange={(e) => handleItemChange(item.id, 'description', e.target.value)}
+                                                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                                />
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveItem(item.id)}
+                                                                className="mt-6 p-2 text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                                                            >
+                                                                <X size={20} />
+                                                            </button>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-3 gap-3">
+                                                            <div>
+                                                                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Qty</label>
+                                                                <input
+                                                                    type="number"
+                                                                    min="1"
+                                                                    value={item.qty}
+                                                                    onChange={(e) => handleItemChange(item.id, 'qty', e.target.value)}
+                                                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-center font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                                />
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Price</label>
+                                                                <input
+                                                                    type="number"
+                                                                    step="0.01"
+                                                                    value={item.unitPrice}
+                                                                    onChange={(e) => handleItemChange(item.id, 'unitPrice', e.target.value)}
+                                                                    className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm text-right font-medium focus:ring-2 focus:ring-indigo-500 outline-none"
+                                                                />
+                                                            </div>
+                                                            <div className="flex flex-col justify-end text-right">
+                                                                <label className="block text-[10px] font-bold text-slate-400 uppercase mb-5">Total</label>
+                                                                <span className="text-sm font-bold text-slate-700 pb-2">
+                                                                    RM {(item.qty * item.unitPrice).toFixed(2)}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
                                     </div>
@@ -766,7 +822,7 @@ const Expenses = () => {
                                             <td className="px-6 py-4 text-slate-500">{exp.date}</td>
                                             <td className="px-6 py-4">
                                                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${exp.category === 'Material' ? 'bg-blue-100 text-blue-700' :
-                                                        exp.category === 'Salary' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                                                    exp.category === 'Salary' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
                                                     }`}>
                                                     {exp.category || 'Other'}
                                                 </span>
@@ -790,7 +846,7 @@ const Expenses = () => {
                                     <div className="flex justify-between items-start mb-3">
                                         <div>
                                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${exp.category === 'Material' ? 'bg-blue-100 text-blue-700' :
-                                                    exp.category === 'Salary' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                                                exp.category === 'Salary' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
                                                 }`}>
                                                 {exp.category || 'Other'}
                                             </span>
