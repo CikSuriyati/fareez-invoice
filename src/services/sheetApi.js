@@ -24,23 +24,13 @@ export const scanReceiptAPI = async (base64Image) => {
 };
 
 export const saveInvoiceToSheet = async (invoiceData) => {
-
-
-    // Google Apps Script requires 'no-cors' for simple POSTs usually, or specialized handling.
-    // Ideally we use text/plain to avoid preflight CORS issues with simple GAS triggers.
-
-    await fetch(API_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: {
-            "Content-Type": "text/plain",
-        },
-        body: JSON.stringify(invoiceData),
-    });
-
-    // Because of 'no-cors', we get an opaque response. We can't read the JSON back.
-    // We assume success if no network error thrown.
-    return true;
+    try {
+        // Use postData for robust CORS handling (like scanReceiptAPI)
+        return await postData(invoiceData);
+    } catch (e) {
+        console.error("Failed to save invoice:", e);
+        return { result: "error", error: e.message };
+    }
 };
 
 export const fetchNextId = async () => {

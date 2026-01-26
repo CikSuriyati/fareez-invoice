@@ -479,6 +479,7 @@ function getProjectById(projectId) {
             desc: row[3],         // Col D
             unitPrice: row[4],    // Col E
             qty: row[5],          // Col F
+            total: row[6] || 0,   // Col G (Total)
             brand: row[8],        // Col I (was L)
             model: row[9] || ""   // Col J (was M)
           });
@@ -497,6 +498,90 @@ function getProjectById(projectId) {
 
   } catch (e) {
     return jsonResponse({ error: "Server Error: " + e.toString() });
+  }
+}
+
+// Internal helper: Get project data without HTTP wrapper (for use within Apps Script)
+function getProjectDataRaw(projectId) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  try {
+    // 1. Fetch Project Details
+    var projectSheet = ss.getSheetByName(SHEET_PROJECTS);
+    if (!projectSheet) return { error: "Projects sheet not found" };
+    
+    var pData = projectSheet.getDataRange().getValues();
+    var projectRow = null;
+    var searchId = String(projectId).trim();
+
+    for (var i = 1; i < pData.length; i++) {
+      if (String(pData[i][1]).trim() === searchId) {
+        projectRow = pData[i];
+        break;
+      }
+    }
+    
+    if (!projectRow) return { error: "Project ID not found" };
+
+    // Safe Date Parsing
+    var dateStr = "";
+    try {
+      if (projectRow[0]) {
+        var timestamp = new Date(projectRow[0]);
+        if (!isNaN(timestamp.getTime())) {
+          dateStr = timestamp.toISOString().split('T')[0];
+        }
+      }
+    } catch (err) {
+      dateStr = new Date().toISOString().split('T')[0];
+    }
+    if (!dateStr) dateStr = new Date().toISOString().split('T')[0];
+
+    var projectData = {
+      id: projectRow[1],
+      customer: projectRow[2],
+      email: projectRow[3],
+      phone: projectRow[4],
+      address: projectRow[5],
+      date: dateStr,
+      status: projectRow[12] || 'UNPAID',
+      deposit: projectRow[10] || 0,
+      discount: Number(projectRow[14]) || 0
+    };
+    
+    // Use GID 663549614
+    var itemSheet = getSheetById(ss, 663549614);
+    if (!itemSheet) itemSheet = ss.getSheetByName(SHEET_ITEMS);
+
+    var items = [];
+    if (itemSheet) {
+      var iData = itemSheet.getDataRange().getValues();
+      for (var j = 1; j < iData.length; j++) {
+        if (String(iData[j][0]).trim().toUpperCase() === searchId.toUpperCase()) {
+          var row = iData[j];
+          items.push({
+            room: row[1],
+            type: row[2],
+            desc: row[3],
+            unitPrice: row[4],
+            qty: row[5],
+            total: row[6] || 0,
+            brand: row[8],
+            model: row[9] || ""
+          });
+        }
+      }
+    }
+
+    return {
+      type: 'INVOICE', 
+      status: projectRow[12] || 'UNPAID',
+      project: projectData,
+      items: items
+    };
+
+  } catch (e) {
+    return { error: "Server Error: " + e.toString() };
   }
 }
 
@@ -831,10 +916,13 @@ function doPost(e) {
         projectSheet.getRange(projectRow, 12).setValue(balance); // Col L: Balance
         Logger.log('✓ Updated Balance: ' + netTotal + ' - ' + newDeposit + ' = ' + balance);
         
-        // Determine actual status based on payment
-        if (balance <= 0) {
+        // Determine actual status based on payment (rounded comparison)
+        var rNetTotal = Math.round(netTotal * 100);
+        var rNewDeposit = Math.round(newDeposit * 100);
+
+        if (rNewDeposit >= rNetTotal && rNetTotal > 0) {
           actualStatus = 'PAID';
-        } else if (newDeposit > 0) {
+        } else if (rNewDeposit > 0) {
           actualStatus = 'PARTIAL';
         } else {
           actualStatus = 'UNPAID';
@@ -848,14 +936,102 @@ function doPost(e) {
       projectSheet.getRange(projectRow, 13).setValue(actualStatus); // Col M: Status
       Logger.log('✓ Set Status in Sheet: ' + actualStatus);
 
+      // Flush changes to ensure they are visible to the next stage
+      SpreadsheetApp.flush();
+
       
+      // --- GENERATE & SAVE PDF DOCUMENT ---
+      var fileUrl = null;
+      var glPdfBase64 = null;
+      var pdfName = null;
+      
+      // AUTO-PDF GENERATION (Restored for QuickUpdate as it has no frontend capture)
+      try {
+        // 1. Re-fetch full project data for the PDF
+        var projectData = getProjectDataRaw(projectId); // Returns raw data, not HTTP-wrapped
+        
+        // Validate we fetched the data successfully
+        if (!projectData || projectData.error) {
+            throw new Error('Failed to fetch project data: ' + (projectData ? projectData.error : 'Unknown error'));
+        }
+        
+        // Validate we have the required data structure
+        if (!projectData.project || !projectData.project.id) {
+            throw new Error('Invalid project data structure - missing project.id');
+        }
+        
+        // Fix: Ensure item totals are calculated (for PDF generation)
+        if (projectData.items && projectData.items.length > 0) {
+            projectData.items.forEach(function(item) {
+                // Always recalculate to ensure accuracy
+                var calculatedTotal = (Number(item.qty) || 0) * (Number(item.unitPrice) || 0);
+                item.total = calculatedTotal;
+                Logger.log('Item: ' + item.desc + ' | Qty: ' + item.qty + ' | Price: ' + item.unitPrice + ' | Total: ' + item.total);
+            });
+        }
+        
+        if (projectData && !projectData.error) {
+           // 2. Prepare data for PDF Generation
+           // projectData has { project: {...}, items: [...], ... }
+           // generatePDFfromData expects (projectData, lineItems, docType)
+           
+           // Determine Doc Type based on the NEW status
+           var docType = 'INVOICE';
+           if (actualStatus === 'PAID' || actualStatus === 'PARTIAL') {
+               // Usually PAID = Receipt, PARTIAL = Invoice (with partial payment shown)
+               // Let's use the helper
+               var docInfo = getDocTypeFromStatus(actualStatus);
+               docType = docInfo.type;
+           }
+           
+           Logger.log('Generating PDF type: ' + docType);
+           
+           var pdfResult = generatePDFfromData(projectData.project, projectData.items, docType);
+           // pdfResult = { blob, filename }
+           
+           // 3. Save to Drive
+           // Get year from project ID or current
+           var pYear = new Date().getFullYear();
+           var idMatch = projectId.match(/(\d{4})/);
+           if (idMatch) pYear = idMatch[1];
+           
+           var docInfo = getDocTypeFromStatus(docType); // Helper
+           var targetFolder = getOrCreateYearSubfolder(FOLDER_NAME, pYear, docInfo.subfolder);
+           
+           fileUrl = savePDFToDrive(pdfResult.blob, pdfResult.filename, targetFolder);
+           pdfName = pdfResult.filename;
+           glPdfBase64 = Utilities.base64Encode(pdfResult.blob.getBytes());
+           
+           Logger.log('PDF Saved: ' + fileUrl);
+           
+           // 4. Update "Doc Link" in Sheet (Col I / Index 8)
+           projectSheet.getRange(projectRow, 9).setValue(fileUrl);
+        }
+      } catch (pdfErr) {
+        Logger.log("❌ Auto-PDF Generation Failed: " + pdfErr.toString());
+        Logger.log("Error Stack: " + pdfErr.stack);
+        // Return error info to frontend for debugging
+        return jsonResponse({ 
+          result: "error", 
+          error: "PDF generation failed: " + pdfErr.toString(),
+          debug: {
+            projectId: projectId,
+            actualStatus: actualStatus,
+            errorDetails: pdfErr.message
+          }
+        });
+      }
+
       // Flush changes to ensure they're committed
       SpreadsheetApp.flush();
       
       return jsonResponse({ 
         result: "success", 
-        message: "Status updated to " + actualStatus,
+        message: "Status updated to " + actualStatus + (fileUrl ? ". Document generated." : ""),
         receiptUrl: receiptUrl,
+        fileUrl: fileUrl,       // For Frontend "Copy Link"
+        pdfBase64: glPdfBase64, // For Frontend "Share via WhatsApp" (Preview)
+        pdfFileName: pdfName,
         debug: {
           updatedDeposit: receiptData && paidAmount && paidAmount > 0,
           paidAmount: paidAmount,
@@ -1008,9 +1184,81 @@ function doPost(e) {
     
     SpreadsheetApp.flush();
 
+    // ---------------------------------------------------------
+    // 3. GENERATE & SAVE PDF AUTOMATICALLY
+    // ---------------------------------------------------------
+    var fileUrl = null;
+    var glPdfBase64 = null;
+    
+    /* AUTO-PDF GENERATION DISABLED
+    try {
+        // Prepare line items for PDF generator (needs strictly 'item', 'qty', 'total', 'desc')
+        // data.items structure: { desc, qty, unitPrice, ... }
+        // generatePDFfromData expects Items array
+        
+        // Ensure data.type is valid
+        var docType = data.type || 'INVOICE';
+        
+        // 2026-01-25 Fix: Calculate item totals if missing (frontend state doesn't store 'total')
+        if (data.items && data.items.length > 0) {
+            data.items.forEach(function(item) {
+                if (item.total === undefined || item.total === null) {
+                    item.total = (Number(item.qty) || 0) * (Number(item.unitPrice) || 0);
+                }
+            });
+        }
+        
+        // 2026-01-26 Fix: Ensure all data (status, deposit, discount) is passed in the project object
+        var pdfProjectData = {
+          id: data.project.id,
+          customer: data.project.customer,
+          email: data.project.email,
+          phone: data.project.phone,
+          address: data.project.address,
+          date: data.project.date || new Date().toLocaleDateString(),
+          status: data.status,
+          deposit: data.totals.deposit || 0,
+          discount: data.discount || 0
+        };
+        
+        var pdfResult = generatePDFfromData(pdfProjectData, data.items, docType);
+        
+        // Save to Drive
+        var pYear = new Date().getFullYear();
+        var idMatch = projectId.match(/(\d{4})/);
+        if (idMatch) pYear = idMatch[1];
+        
+        var docInfo = getDocTypeFromStatus(docType); // Will map correctly now
+        // Force docType driven folder if helper fallback isn't perfect for "Quotation" passed as type
+        var folderName = docType === 'QUOTATION' ? 'Quotation' : docInfo.subfolder;
+        var targetFolder = getOrCreateYearSubfolder(FOLDER_NAME, pYear, folderName);
+        
+        fileUrl = savePDFToDrive(pdfResult.blob, pdfResult.filename, targetFolder);
+        glPdfBase64 = Utilities.base64Encode(pdfResult.blob.getBytes());
+        
+        // Update Sheet with Link
+        var pSheet = ss.getSheetByName(SHEET_PROJECTS);
+        if (rowIndexToUpdate > 0) {
+             pSheet.getRange(rowIndexToUpdate, 9).setValue(fileUrl);
+        } else {
+             // It's the last row
+             pSheet.getRange(pSheet.getLastRow(), 9).setValue(fileUrl);
+        }
+        
+    } catch (pdfErr) {
+        Logger.log("❌ Auto-Save PDF Failed: " + pdfErr.toString());
+    }
+    */
+
     SpreadsheetApp.flush();
 
-    return jsonResponse({ result: "success", id: projectId, action: rowIndexToUpdate > 0 ? "updated" : "created" });
+    return jsonResponse({ 
+      result: "success", 
+      id: projectId, 
+      action: rowIndexToUpdate > 0 ? "updated" : "created",
+      fileUrl: fileUrl,
+      pdfBase64: glPdfBase64
+    });
 
   } catch (e) {
     return jsonResponse({ result: "error", error: e.toString() });
@@ -1277,34 +1525,37 @@ function generateDocument(type) {
     const TOTAL_COL = 10;     // Col J
     const DEPOSIT_COL = 11;   // Col K
     const BALANCE_COL = 12;   // Col L
-    const DISCOUNT_COL = 15;  // Col O (Index 14 - accessed as 1-based? No ProjectData is row array)
-    // Wait generateDocument uses 'projectData' from getValues?? No.
-    // getProjectById returns single object.
-    // generateDocument uses projectData which is... passed as arg?? 
-    // Wait 'projectData' in generate document is... let me check generateDocument declaration.
-    // It's 'projectRow'. Array of values.
-    // So projectRow[14] is Col O.
-    // My previous edit used projectData[DISCOUNT_COL - 1].
-    // If I set DISCOUNT_COL = 15, then [14] is correct.
+    const STATUS_COL = 13;    // Col M
+    const DISCOUNT_COL = 15;  // Col O
     
-    const depositPaid = projectData[DEPOSIT_COL - 1] ? Number(projectData[DEPOSIT_COL - 1]) : 0;
+    let depositPaid = projectData[DEPOSIT_COL - 1] ? Number(projectData[DEPOSIT_COL - 1]) : 0;
     const discount = projectData[DISCOUNT_COL - 1] ? Number(projectData[DISCOUNT_COL - 1]) : 0;
+    const currentStatus = String(projectData[STATUS_COL - 1]).toUpperCase();
     
     // Net Total (after discount)
     const netTotal = totalAmount - discount;
+
+    // Fallback: If it's marked as PAID but deposit is 0, assume it's fully paid
+    if (currentStatus === 'PAID' && depositPaid === 0) {
+      depositPaid = netTotal;
+    }
+
     const balanceDue = netTotal - depositPaid;
 
     template.deposit = depositPaid;
     template.discount = discount;
     template.balance = balanceDue;
-    template.subtotal = totalAmount; // Fix ReferenceError
-    template.netTotal = netTotal;    // Fix ReferenceError
+    template.subtotal = totalAmount; 
+    template.netTotal = netTotal;
 
     let status = "UNPAID";
-    if (depositPaid >= netTotal && netTotal > 0) {
+    // Use rounded values for financial comparison
+    const rDeposit = Math.round(depositPaid * 100);
+    const rNetTotal = Math.round(netTotal * 100);
+
+    if (rDeposit >= rNetTotal && rNetTotal > 0) {
       status = "PAID";
-    } else if (depositPaid > 0 && depositPaid < netTotal) {
-    } else if (depositPaid > 0 && depositPaid < totalAmount) {
+    } else if (rDeposit > 0) {
       status = "PARTIAL";
     }
 
@@ -1403,11 +1654,11 @@ function getDocTypeFromStatus(statusOrType) {
   // Status-based mapping
   if (upper === 'PAID') {
     return { type: 'RECEIPT', prefix: 'RCT', subfolder: 'Receipt' };
-  } else if (upper === 'PARTIAL') {
-    return { type: 'INVOICE', prefix: 'INV', subfolder: 'Invoice' };
-  } else {
-    // Default: UNPAID or anything else = Quotation
+  } else if (upper === 'QUOTATION') {
     return { type: 'QUOTATION', prefix: 'QTN', subfolder: 'Quotation' };
+  } else {
+    // Default: INVOICE (for UNPAID, PARTIAL, or others)
+    return { type: 'INVOICE', prefix: 'INV', subfolder: 'Invoice' };
   }
 }
 
@@ -1433,7 +1684,17 @@ function generatePDFfromData(projectData, lineItems, docType) {
       date: new Date().toLocaleDateString()
     };
     
-    template.items = lineItems;
+    // Sanitize items to ensure numbers for toFixed() template calls
+    template.items = lineItems.map(function(item) {
+      return {
+        room: item.room || "",
+        type: item.type || "",
+        desc: item.desc || "",
+        qty: Number(item.qty) || 0,
+        unitPrice: Number(item.unitPrice) || 0,
+        total: Number(item.total) || 0
+      };
+    });
     
     // Calculate totals
     var subtotal = 0;
@@ -1444,6 +1705,13 @@ function generatePDFfromData(projectData, lineItems, docType) {
     var discount = Number(projectData.discount) || 0;
     var netTotal = subtotal - discount;
     var depositPaid = Number(projectData.deposit) || 0;
+    var currentStatus = String(projectData.status).toUpperCase();
+
+    // Fallback: If it's marked as PAID but deposit is 0, assume it's fully paid
+    if (currentStatus === 'PAID' && depositPaid === 0) {
+      depositPaid = netTotal;
+    }
+
     var balanceDue = netTotal - depositPaid;
     
     template.subtotal = subtotal;
@@ -1455,9 +1723,14 @@ function generatePDFfromData(projectData, lineItems, docType) {
     
     // Determine status
     var status = 'UNPAID';
-    if (depositPaid >= netTotal && netTotal > 0) {
+    var rDeposit = Math.round(depositPaid * 100);
+    var rNetTotal = Math.round(netTotal * 100);
+
+    if (docInfo.type === 'QUOTATION') {
+        status = ''; // Hide status for Quotations
+    } else if (rDeposit >= rNetTotal && rNetTotal > 0) {
       status = 'PAID';
-    } else if (depositPaid > 0 && depositPaid < netTotal) {
+    } else if (rDeposit > 0) {
       status = 'PARTIAL';
     }
     template.status = status;

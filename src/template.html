@@ -395,12 +395,14 @@
                         <div><span style="color: #666; font-weight: bold;">Document ID:</span>
                             <?= project.id ?>
                         </div>
+                        <? if (status && type !== 'QUOTATION') { ?>
                         <div><span style="color: #666; font-weight: bold;">Status:</span>
                             <span
                                 class="<?= status === 'PAID' ? 'status-paid' : (status === 'PARTIAL' ? 'status-partial' : 'status-unpaid') ?>">
                                 <?= status ?>
                             </span>
                         </div>
+                        <? } ?>
                     </td>
                 </tr>
             </table>

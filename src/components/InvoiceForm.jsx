@@ -4,7 +4,7 @@ import { Plus, Trash2, Save, Printer, Search, ChevronDown } from 'lucide-react';
 import { fetchCustomers } from '../services/sheetApi';
 
 
-const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, isSaving, onEmail, isSending }) => {
+const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, isSaving, onEmail, isSending, onWhatsApp, isSavingPDF }) => {
     const { register, control, handleSubmit, watch, setValue, reset } = useForm({
         defaultValues: defaultValues || {
             type: 'INVOICE',
@@ -185,13 +185,20 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
                 <button onClick={onPrint} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2">
                     <Printer size={16} /> Print
                 </button>
-                {onEmail && (
+                {onWhatsApp && (
                     <button
-                        onClick={() => onEmail(watch('project.email'))}
-                        disabled={isSending}
-                        className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                        onClick={onWhatsApp}
+                        disabled={isSaving || isSavingPDF}
+                        className="flex-1 bg-[#25D366] hover:bg-[#128C7E] text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 disabled:opacity-50 shadow-sm"
                     >
-                        <Plus size={16} className="rotate-45" /> {isSending ? 'Sending...' : 'Email'}
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="18" cy="5" r="3"></circle>
+                            <circle cx="6" cy="12" r="3"></circle>
+                            <circle cx="18" cy="19" r="3"></circle>
+                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                        </svg>
+                        {isSavingPDF ? 'Sharing...' : 'WhatsApp'}
                     </button>
                 )}
             </div>
@@ -528,6 +535,7 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
                     <option value="Installation" />
                     <option value="Plumbing" />
                 </datalist>
+
             </form>
         </div>
     );

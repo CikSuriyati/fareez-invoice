@@ -147,115 +147,77 @@ const Expenses = () => {
         setIsSaving(true);
 
         try {
-            // Check if we're saving multiple items or single entry
-            if (showItemsTable && extractedItems.length > 0) {
-                // BATCH SAVE: Create separate expense entry for each line item
-                let successCount = 0;
-                let failCount = 0;
+            // Validate Items
+            if (!extractedItems || extractedItems.length === 0) {
+                alert("Please add at least one line item.");
+                setIsSaving(false);
+                return;
+            }
 
-                // Convert receipt file to base64 once (reuse for all entries)
-                let receiptData = null;
-                if (receiptFile) {
-                    const reader = new FileReader();
-                    receiptData = await new Promise((resolve, reject) => {
-                        reader.onloadend = () => {
-                            const base64 = reader.result.split(',')[1];
-                            resolve({
-                                data: base64,
-                                fileName: receiptFile.name,
-                                mimeType: receiptFile.type
-                            });
-                        };
-                        reader.onerror = reject;
-                        reader.readAsDataURL(receiptFile);
-                    });
-                }
+            let successCount = 0;
+            let failCount = 0;
 
-                // Save each item as a separate expense
-                for (const item of extractedItems) {
-                    if (!item.description) continue; // Skip empty items
-
-                    const amount = (parseFloat(item.qty) || 0) * (parseFloat(item.unitPrice) || 0);
-                    const payload = {
-                        projectId: formData.projectId,
-                        refNo: formData.refNo,
-                        store: formData.store,
-                        desc: item.description,
-                        qty: item.qty,
-                        unitPrice: item.unitPrice,
-                        amount: amount,
-                        category: formData.category || 'Material',
-                        date: formData.date
+            // Convert receipt file to base64 once (reuse for all entries)
+            let receiptData = null;
+            if (receiptFile) {
+                const reader = new FileReader();
+                receiptData = await new Promise((resolve, reject) => {
+                    reader.onloadend = () => {
+                        const base64 = reader.result.split(',')[1];
+                        resolve({
+                            data: base64,
+                            fileName: receiptFile.name,
+                            mimeType: receiptFile.type
+                        });
                     };
+                    reader.onerror = reject;
+                    reader.readAsDataURL(receiptFile);
+                });
+            }
 
-                    const success = await saveExpense(payload, receiptData, null);
-                    if (success) {
-                        successCount++;
-                    } else {
-                        failCount++;
-                    }
+            // Save each item as a separate expense
+            for (const item of extractedItems) {
+                if (!item.description) continue; // Skip empty items
 
-                    // Small delay to avoid overwhelming backend
-                    await new Promise(resolve => setTimeout(resolve, 300));
-                }
-
-                if (successCount > 0) {
-                    alert(`✓ Saved ${successCount} expense(s) successfully!${failCount > 0 ? `\n${failCount} failed.` : ''}`);
-                    setShowForm(false);
-                    setShowItemsTable(false);
-                    setExtractedItems([]);
-                    setFormData({
-                        projectId: '', refNo: '', store: '', desc: '', qty: 1, unitPrice: 0, category: 'Material', date: new Date().toISOString().split('T')[0]
-                    });
-                    setReceiptFile(null);
-                    setReceiptFilePreview(null);
-                    setTimeout(loadData, 2000);
-                } else {
-                    alert("Failed to save expenses.");
-                }
-
-            } else {
-                // SINGLE SAVE: Original behavior
-                const amount = (parseFloat(formData.qty) || 0) * (parseFloat(formData.unitPrice) || 0);
+                const amount = (parseFloat(item.qty) || 0) * (parseFloat(item.unitPrice) || 0);
                 const payload = {
-                    ...formData,
+                    projectId: formData.projectId,
+                    refNo: formData.refNo,
+                    store: formData.store,
+                    desc: item.description,
+                    qty: item.qty,
+                    unitPrice: item.unitPrice,
                     amount: amount,
                     category: formData.category || 'Material',
                     date: formData.date
                 };
 
-                // Convert receipt file to base64 if present
-                let receiptData = null;
-                if (receiptFile) {
-                    const reader = new FileReader();
-                    receiptData = await new Promise((resolve, reject) => {
-                        reader.onloadend = () => {
-                            const base64 = reader.result.split(',')[1];
-                            resolve({
-                                data: base64,
-                                fileName: receiptFile.name,
-                                mimeType: receiptFile.type
-                            });
-                        };
-                        reader.onerror = reject;
-                        reader.readAsDataURL(receiptFile);
-                    });
-                }
-
                 const success = await saveExpense(payload, receiptData, null);
                 if (success) {
-                    alert("Expense Saved!");
-                    setShowForm(false);
-                    setFormData({
-                        projectId: '', refNo: '', store: '', desc: '', qty: 1, unitPrice: 0, category: 'Material', date: new Date().toISOString().split('T')[0]
-                    });
-                    setReceiptFile(null);
-                    setReceiptFilePreview(null);
-                    setTimeout(loadData, 2000);
+                    successCount++;
                 } else {
-                    alert("Failed to save expense.");
+                    failCount++;
                 }
+
+                // Small delay to avoid overwhelming backend
+                await new Promise(resolve => setTimeout(resolve, 300));
             }
+
+            if (successCount > 0) {
+                alert(`✓ Saved ${successCount} expense(s) successfully!${failCount > 0 ? `\n${failCount} failed.` : ''}`);
+                setShowForm(false);
+                setShowItemsTable(false);
+                setExtractedItems([]);
+                setFormData({
+                    projectId: '', refNo: '', store: '', desc: '', qty: 1, unitPrice: 0, category: 'Material', date: new Date().toISOString().split('T')[0]
+                });
+                setReceiptFile(null);
+                setReceiptFilePreview(null);
+                setTimeout(loadData, 2000);
+            } else {
+                alert("No valid items to save.");
+            }
+
         } catch (error) {
             console.error('Save error:', error);
             alert("Failed to save expense: " + error.message);
@@ -350,12 +312,20 @@ const Expenses = () => {
 
                 } else {
                     // No items detected - fallback to single total extraction
+                    const fallbackItem = {
+                        id: Date.now(),
+                        description: result.extracted.store ? `Receipt from ${result.extracted.store}` : 'Expense Entry',
+                        qty: 1,
+                        unitPrice: result.extracted.amount || 0
+                    };
+
+                    setExtractedItems([fallbackItem]);
+                    setShowItemsTable(true);
+
                     setFormData(prev => ({
                         ...prev,
                         store: result.extracted.store || prev.store,
-                        refNo: result.extracted.refNo || prev.refNo,
-                        unitPrice: result.extracted.amount || prev.unitPrice,
-                        desc: result.extracted.store ? `Receipt from ${result.extracted.store}` : prev.desc
+                        refNo: result.extracted.refNo || prev.refNo
                     }));
 
                     // Convert scanned image to file object
@@ -497,7 +467,13 @@ const Expenses = () => {
                                 <Camera size={18} /> <span className="hidden sm:inline">Scan Receipt</span>
                             </button>
                             <button
-                                onClick={() => setShowForm(!showForm)}
+                                onClick={() => {
+                                    if (!showForm) {
+                                        setExtractedItems([{ id: Date.now(), description: '', qty: 1, unitPrice: 0 }]);
+                                        setShowItemsTable(true);
+                                    }
+                                    setShowForm(!showForm);
+                                }}
                                 className="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700 flex items-center gap-2"
                             >
                                 <Plus size={18} /> <span className="hidden sm:inline">Add</span>
@@ -670,23 +646,10 @@ const Expenses = () => {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Description</label>
-                                    <input type="text" name="desc" required value={formData.desc} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Item Name" />
-                                </div>
-                                <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Store / Supplier</label>
                                     <input type="text" name="store" required value={formData.store} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Store Name" />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Qty</label>
-                                        <input type="number" name="qty" min="1" value={formData.qty} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Price (RM)</label>
-                                        <input type="number" name="unitPrice" min="0" step="0.01" value={formData.unitPrice} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                    </div>
-                                </div>
+
                                 <div>
                                     <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Date</label>
                                     <input type="date" name="date" required value={formData.date} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 p-4 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-indigo-500 outline-none" />

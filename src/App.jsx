@@ -10,7 +10,7 @@ import QuickUpdate from './components/QuickUpdate';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { saveInvoiceToSheet, fetchNextId, fetchProjectById, sendInvoiceEmail, saveInvoicePDF, fetchProjectDocuments, fetchFileData } from './services/sheetApi';
-import { FileText, LayoutDashboard, ShoppingBag, BarChart, Zap, Printer } from 'lucide-react';
+import { FileText, LayoutDashboard, ShoppingBag, BarChart, Zap, Printer, Share2 } from 'lucide-react';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -176,15 +176,44 @@ function App() {
     }
   };
 
-  const handleSave = async (data, isSilent = false) => {
+  const handleSave = async (data = null, isSilent = false) => {
+    const dataToSave = data || invoiceData;
     setIsSaving(true);
-    if (!isSilent) console.log("Saving to sheet...", data);
+    if (!isSilent) console.log("Saving to sheet...", dataToSave);
 
     try {
-      const result = await saveInvoiceToSheet(data);
-      if (result && !isSilent) {
-        alert("Invoice saved successfully!");
+      const result = await saveInvoiceToSheet(dataToSave);
+
+      // If this is an EXPLICIT save (User clicked Save button), also generate & archive the PDF
+      if (!isSilent && result && result.result === 'success') {
+        try {
+          setIsSavingPDF(true);
+          const pdfBase64 = await captureAndGeneratePDF();
+          await saveInvoicePDF(dataToSave.project.id, dataToSave.type, pdfBase64);
+        } catch (pdfErr) {
+          console.error("Auto-archive failed during manual save", pdfErr);
+          // Don't fail the whole save, just warn
+        } finally {
+          setIsSavingPDF(false);
+        }
+      }
+
+      if (result && result.result === 'success' && !isSilent) {
+        let msg = "Invoice saved & archived successfully!";
+        if (result.fileUrl) {
+          msg += "\n\nDocument Generated: " + result.fileUrl;
+        }
+        alert(msg);
+
+        // Use the returned ID if it was a new project
+        if (result.id && (!invoiceData.project.id || invoiceData.project.id.includes('XXXX'))) {
+          // Reload or update ID? For now just go to dashboard to be safe
+          // OR: setInvoiceData({...invoiceData, project: {...invoiceData.project, id: result.id}})
+        }
+
         setView('DASHBOARD');
+      } else if (result && result.error) {
+        throw new Error(result.error);
       }
       return result;
     } catch (e) {
@@ -391,6 +420,77 @@ function App() {
     }
   };
 
+  const handleWhatsApp = async () => {
+    // 1. Silent Save
+    try {
+      await handleSave(invoiceData, true);
+    } catch (e) {
+      alert("Failed to save project before sharing.");
+      return;
+    }
+
+    const phone = invoiceData.project.phone || '';
+    const cleanPhone = String(phone).replace(/\D/g, '');
+    let formatPhone = cleanPhone;
+    if (cleanPhone.startsWith('0')) formatPhone = '60' + cleanPhone.substring(1);
+    formatPhone = formatPhone.replace('+', '');
+
+    const message = `Hi ${invoiceData.project.customer}, here is your ${invoiceData.type} for ${invoiceData.project.id}`;
+
+    // 2. Generate PDF Base64 (Frontend Capture)
+    try {
+      setIsSavingPDF(true); // Start loading state
+      const base64 = await captureAndGeneratePDF();
+
+      // 3. ALWAYS Save to Drive First (Record Keeping)
+      const result = await saveInvoicePDF(invoiceData.project.id, invoiceData.type, base64);
+
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      const fileUrl = result.url || '';
+
+      // 4. Attempt Native Share (Mobile) - Send the FILE
+      if (navigator.share) {
+        try {
+          const cleanBase64 = base64.replace('data:application/pdf;filename=generated.pdf;base64,', '').replace('data:application/pdf;base64,', '');
+          const byteCharacters = atob(cleanBase64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const file = new File([byteArray], `${invoiceData.project.id}.pdf`, { type: 'application/pdf' });
+
+          const shareData = {
+            files: [file],
+            title: `${invoiceData.type} ${invoiceData.project.id}`,
+            text: message
+          };
+
+          if (navigator.canShare && navigator.canShare(shareData)) {
+            await navigator.share(shareData);
+            setIsSavingPDF(false);
+            return; // Success, stop here
+          }
+        } catch (err) {
+          console.warn('Native share failed, falling back to Link...', err);
+        }
+      }
+
+      // 5. Fallback: Open WhatsApp with Link (Desktop or failed share)
+      const whatsappUrl = `https://wa.me/${formatPhone}?text=${encodeURIComponent(message + ': ' + fileUrl)}`;
+      window.open(whatsappUrl, '_blank');
+      setIsSavingPDF(false);
+
+    } catch (e) {
+      console.error(e);
+      setIsSavingPDF(false);
+      alert("Error sharing via WhatsApp: " + e.message);
+    }
+  };
+
   // If Printable Report, bypass the entire App Shell layout to prevent Print CSS issues
   if (view === 'PRINTABLE_REPORT') {
     return <PrintableReport />;
@@ -455,12 +555,13 @@ function App() {
                     >
                       {(isSending || isSavingPDF) ? '...' : <><Zap size={14} fill="currentColor" /> Email</>}
                     </button>
+
                     <button
-                      onClick={() => document.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }))}
-                      disabled={isSaving}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-md shadow-indigo-950/20 disabled:opacity-50"
+                      onClick={handleWhatsApp}
+                      disabled={isSaving || isSavingPDF}
+                      className="bg-[#25D366] hover:bg-[#128C7E] text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-md disabled:opacity-50"
                     >
-                      {isSaving ? '...' : <><FileText size={14} /> Save</>}
+                      {isSavingPDF ? '...' : <><Share2 size={14} /> WhatsApp</>}
                     </button>
                   </div>
                 )}
@@ -476,50 +577,53 @@ function App() {
             </div>
           </div>
         </nav>
-      )}
+      )
+      }
 
       {/* Mobile Bottom Navigation - Large Tap Targets */}
-      {view !== 'PRINTABLE_REPORT' && (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 px-2 pb-safe-area shadow-[0_-4px_10px_rgba(0,0,0,0.05)] no-print">
-          <div className="flex items-center justify-around h-20">
-            <button
-              onClick={() => setView('DASHBOARD')}
-              className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl transition-all ${view === 'DASHBOARD' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}
-            >
-              <LayoutDashboard size={24} />
-              <span className="text-[10px] font-bold mt-1">Home</span>
-            </button>
-            <button
-              onClick={gotoNewProject}
-              className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl transition-all ${view === 'EDITOR' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}
-            >
-              <FileText size={24} />
-              <span className="text-[10px] font-bold mt-1">New</span>
-            </button>
-            <button
-              onClick={() => setView('QUICK_UPDATE')}
-              className={`flex flex-col items-center justify-center w-16 h-16 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-200 transition-all active:scale-90`}
-            >
-              <Zap size={24} fill="currentColor" />
-              <span className="text-[10px] font-bold mt-1 uppercase tracking-tighter">Update</span>
-            </button>
-            <button
-              onClick={() => setView('EXPENSES')}
-              className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl transition-all ${view === 'EXPENSES' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}
-            >
-              <ShoppingBag size={24} />
-              <span className="text-[10px] font-bold mt-1">Spend</span>
-            </button>
-            <button
-              onClick={() => setView('REPORTS')}
-              className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl transition-all ${view === 'REPORTS' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}
-            >
-              <BarChart size={24} />
-              <span className="text-[10px] font-bold mt-1">Reports</span>
-            </button>
-          </div>
-        </nav>
-      )}
+      {
+        view !== 'PRINTABLE_REPORT' && (
+          <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-50 px-2 pb-safe-area shadow-[0_-4px_10px_rgba(0,0,0,0.05)] no-print">
+            <div className="flex items-center justify-around h-20">
+              <button
+                onClick={() => setView('DASHBOARD')}
+                className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl transition-all ${view === 'DASHBOARD' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}
+              >
+                <LayoutDashboard size={24} />
+                <span className="text-[10px] font-bold mt-1">Home</span>
+              </button>
+              <button
+                onClick={gotoNewProject}
+                className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl transition-all ${view === 'EDITOR' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}
+              >
+                <FileText size={24} />
+                <span className="text-[10px] font-bold mt-1">New</span>
+              </button>
+              <button
+                onClick={() => setView('QUICK_UPDATE')}
+                className={`flex flex-col items-center justify-center w-16 h-16 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-200 transition-all active:scale-90`}
+              >
+                <Zap size={24} fill="currentColor" />
+                <span className="text-[10px] font-bold mt-1 uppercase tracking-tighter">Update</span>
+              </button>
+              <button
+                onClick={() => setView('EXPENSES')}
+                className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl transition-all ${view === 'EXPENSES' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}
+              >
+                <ShoppingBag size={24} />
+                <span className="text-[10px] font-bold mt-1">Spend</span>
+              </button>
+              <button
+                onClick={() => setView('REPORTS')}
+                className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl transition-all ${view === 'REPORTS' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}
+              >
+                <BarChart size={24} />
+                <span className="text-[10px] font-bold mt-1">Reports</span>
+              </button>
+            </div>
+          </nav>
+        )
+      }
 
       {/* Main Content Area */}
       <main className={`flex-1 w-full overflow-y-auto ${view === 'PRINTABLE_REPORT' ? '' : 'max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8'}`}>
@@ -556,7 +660,9 @@ function App() {
                 onLoadProject={handleLoadProject}
                 isSaving={isSaving}
                 onEmail={handleSendEmail}
+                onWhatsApp={handleWhatsApp}
                 isSending={isSending}
+                isSavingPDF={isSavingPDF}
               />
             </div>
 
@@ -623,74 +729,76 @@ function App() {
         }
       `}</style>
       {/* Email Modal Overlay */}
-      {showEmailModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 no-print">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-96 animate-fadeIn">
-            <h3 className="text-lg font-bold mb-4 text-gray-800">Send via Email</h3>
+      {
+        showEmailModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 no-print">
+            <div className="bg-white p-6 rounded-lg shadow-xl w-96 animate-fadeIn">
+              <h3 className="text-lg font-bold mb-4 text-gray-800">Send via Email</h3>
 
-            {!emailResult ? (
-              <>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Email</label>
-                <input
-                  type="email"
-                  value={recipientEmail}
-                  onChange={(e) => setRecipientEmail(e.target.value)}
-                  className="w-full border p-2 rounded mb-6 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="customer@example.com"
-                />
+              {!emailResult ? (
+                <>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Email</label>
+                  <input
+                    type="email"
+                    value={recipientEmail}
+                    onChange={(e) => setRecipientEmail(e.target.value)}
+                    className="w-full border p-2 rounded mb-6 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="customer@example.com"
+                  />
 
-                <div className="flex justify-end gap-2">
-                  <button
-                    onClick={() => setShowEmailModal(false)}
-                    className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded text-sm font-medium"
-                    disabled={isSending}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={confirmSendEmail}
-                    disabled={isSending}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium flex items-center gap-2"
-                  >
-                    {isSending ? (
-                      <>
-                        <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
-                        Sending...
-                      </>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setShowEmailModal(false)}
+                      className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded text-sm font-medium"
+                      disabled={isSending}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={confirmSendEmail}
+                      disabled={isSending}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 disabled:opacity-50 text-sm font-medium flex items-center gap-2"
+                    >
+                      {isSending ? (
+                        <>
+                          <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                          Sending...
+                        </>
+                      ) : (
+                        'Send Email'
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-4">
+                  <div className={`mx-auto flex items-center justify-center w-12 h-12 rounded-full mb-4 ${emailResult.type === 'success' ? 'bg-green-100' : 'bg-red-100'}`}>
+                    {emailResult.type === 'success' ? (
+                      <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                     ) : (
-                      'Send Email'
+                      <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                     )}
+                  </div>
+                  <p className="text-gray-800 font-medium mb-6 whitespace-pre-wrap">{emailResult.message}</p>
+                  <button
+                    onClick={() => {
+                      setShowEmailModal(false);
+                      setEmailResult(null); // Reset for next time
+                    }}
+                    className="w-full px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium"
+                  >
+                    Close
                   </button>
                 </div>
-              </>
-            ) : (
-              <div className="text-center py-4">
-                <div className={`mx-auto flex items-center justify-center w-12 h-12 rounded-full mb-4 ${emailResult.type === 'success' ? 'bg-green-100' : 'bg-red-100'}`}>
-                  {emailResult.type === 'success' ? (
-                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                  ) : (
-                    <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                  )}
-                </div>
-                <p className="text-gray-800 font-medium mb-6 whitespace-pre-wrap">{emailResult.message}</p>
-                <button
-                  onClick={() => {
-                    setShowEmailModal(false);
-                    setEmailResult(null); // Reset for next time
-                  }}
-                  className="w-full px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium"
-                >
-                  Close
-                </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Login overlay if not authenticated */}
       {!isAuthenticated && <Login onLoginSuccess={handleLogin} />}
-    </div>
+    </div >
   );
 }
 
