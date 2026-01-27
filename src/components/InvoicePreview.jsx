@@ -52,14 +52,10 @@ const InvoicePreview = ({ data }) => {
                   type === 'RECEIPT' ? 'RCT' : 'JOB';
               return project.id.replace(/^[A-Z]+/, prefix);
             })() : ''}<br />
-            {type !== 'QUOTATION' && (
-              <>
-                <strong>STATUS:</strong> <span className={`font-bold uppercase ${status === 'PAID' ? 'text-emerald-600' :
-                  status === 'PARTIAL' ? 'text-orange-500' :
-                    'text-red-600'
-                  }`}>{status}</span>
-              </>
-            )}
+            <strong>STATUS:</strong> <span className={`font-bold uppercase ${status === 'PAID' ? 'text-emerald-600' :
+              status === 'PARTIAL' ? 'text-orange-500' :
+                'text-red-600'
+              }`}>{status}</span>
           </div>
         </div>
 

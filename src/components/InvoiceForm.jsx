@@ -185,6 +185,14 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
                 <button onClick={onPrint} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2">
                     <Printer size={16} /> Print
                 </button>
+
+                <button
+                    onClick={() => onSave()}
+                    disabled={isSaving}
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                >
+                    <Save size={16} /> {isSaving ? 'Saving...' : 'Save'}
+                </button>
                 {onWhatsApp && (
                     <button
                         onClick={onWhatsApp}

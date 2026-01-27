@@ -184,19 +184,7 @@ function App() {
     try {
       const result = await saveInvoiceToSheet(dataToSave);
 
-      // If this is an EXPLICIT save (User clicked Save button), also generate & archive the PDF
-      if (!isSilent && result && result.result === 'success') {
-        try {
-          setIsSavingPDF(true);
-          const pdfBase64 = await captureAndGeneratePDF();
-          await saveInvoicePDF(dataToSave.project.id, dataToSave.type, pdfBase64);
-        } catch (pdfErr) {
-          console.error("Auto-archive failed during manual save", pdfErr);
-          // Don't fail the whole save, just warn
-        } finally {
-          setIsSavingPDF(false);
-        }
-      }
+
 
       if (result && result.result === 'success' && !isSilent) {
         let msg = "Invoice saved & archived successfully!";
@@ -555,7 +543,13 @@ function App() {
                     >
                       {(isSending || isSavingPDF) ? '...' : <><Zap size={14} fill="currentColor" /> Email</>}
                     </button>
-
+                    <button
+                      onClick={() => handleSave()}
+                      disabled={isSaving}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-md shadow-indigo-950/20 disabled:opacity-50"
+                    >
+                      {isSaving ? '...' : <><FileText size={14} /> Save</>}
+                    </button>
                     <button
                       onClick={handleWhatsApp}
                       disabled={isSaving || isSavingPDF}
@@ -669,7 +663,7 @@ function App() {
             {/* Right: Preview (Standard A4) */}
             <div className="w-full lg:col-span-7 flex justify-center">
               <div className="sticky top-24 h-fit w-full flex justify-center">
-                <div className="print-content transform scale-90 sm:scale-95 lg:scale-100 origin-top bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100">
+                <div className="print-content w-full overflow-x-auto sm:overflow-visible sm:transform sm:scale-95 lg:scale-100 sm:origin-top bg-white rounded-2xl shadow-xl border border-slate-100">
                   <InvoicePreview data={invoiceData} />
                 </div>
               </div>

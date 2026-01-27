@@ -46,16 +46,18 @@ const Dashboard = ({ onLoadProject, onNewProject }) => {
     return (
         <div className="min-h-full">
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8">
+            <div className="flex flex-row items-start justify-between mb-8">
                 <div>
                     <h1 id="dashboard-title" className="text-3xl font-bold text-slate-800">Dashboard</h1>
                     <p className="text-slate-500 mt-1">Welcome back! Here's your business overview.</p>
                 </div>
                 <button
                     onClick={onNewProject}
-                    className="mt-4 md:mt-0 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2"
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white p-3 md:px-4 md:py-2 rounded-xl text-sm font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2"
+                    aria-label="New Project"
                 >
-                    <FileText size={20} /> New Project
+                    <FileText size={20} />
+                    <span className="hidden md:inline">New Project</span>
                 </button>
             </div>
 
@@ -79,7 +81,7 @@ const Dashboard = ({ onLoadProject, onNewProject }) => {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 {/* Total Sales */}
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 hover:shadow-md transition-all duration-300">
                     <div className="flex items-center justify-between mb-4">

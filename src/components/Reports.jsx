@@ -108,7 +108,7 @@ const Reports = () => {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="flex flex-row gap-2">
                         <button
                             onClick={handleTestEmail}
                             className="bg-green-700 text-white px-4 py-3 rounded-lg shadow hover:bg-green-600 flex items-center justify-center gap-2 text-sm font-semibold flex-1"
