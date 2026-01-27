@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
-import { Plus, Trash2, Save, Printer, Search, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Save, Printer, Search, ChevronDown, Zap } from 'lucide-react';
 import { fetchCustomers } from '../services/sheetApi';
 
 
@@ -187,11 +187,11 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
                 </button>
 
                 <button
-                    onClick={() => onSave()}
-                    disabled={isSaving}
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+                    onClick={onEmail}
+                    disabled={isSending}
+                    className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
                 >
-                    <Save size={16} /> {isSaving ? 'Saving...' : 'Save'}
+                    <Zap size={16} fill="currentColor" /> {isSending ? 'Sending...' : 'Email'}
                 </button>
                 {onWhatsApp && (
                     <button
@@ -229,17 +229,31 @@ const InvoiceForm = ({ defaultValues, onChange, onPrint, onSave, onLoadProject, 
                                 <option value="QUOTATION">Quotation</option>
                             </select>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-2">Payment Status</label>
-                            <select
-                                {...register("status")}
-                                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                            >
-                                <option value="UNPAID">Unpaid</option>
-                                <option value="PAID">Paid</option>
-                                <option value="PARTIAL">Partial</option>
-                            </select>
-                        </div>
+                        {(currentType !== 'QUOTATION' && currentType !== 'RECEIPT') ? (
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Payment Status</label>
+                                <select
+                                    {...register("status")}
+                                    className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                                >
+                                    <option value="UNPAID">Unpaid</option>
+                                    <option value="PAID">Paid</option>
+                                    <option value="PARTIAL">Partial</option>
+                                </select>
+                            </div>
+                        ) : currentType === 'RECEIPT' ? (
+                            <div>
+                                <label className="block text-sm font-medium text-slate-700 mb-2">Payment Status</label>
+                                <div className="w-full px-4 py-2.5 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500 font-bold">
+                                    PAID
+                                </div>
+                            </div>
+                        ) : (
+                            // Quotation - No payment status needed
+                            <div className="flex items-center justify-center h-full text-slate-400 text-sm italic">
+                                Quotations don't track payment status
+                            </div>
+                        )}
                     </div>
                 </div>
 

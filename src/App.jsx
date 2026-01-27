@@ -543,13 +543,7 @@ function App() {
                     >
                       {(isSending || isSavingPDF) ? '...' : <><Zap size={14} fill="currentColor" /> Email</>}
                     </button>
-                    <button
-                      onClick={() => handleSave()}
-                      disabled={isSaving}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-md shadow-indigo-950/20 disabled:opacity-50"
-                    >
-                      {isSaving ? '...' : <><FileText size={14} /> Save</>}
-                    </button>
+
                     <button
                       onClick={handleWhatsApp}
                       disabled={isSaving || isSavingPDF}
