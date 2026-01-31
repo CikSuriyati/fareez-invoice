@@ -51,7 +51,7 @@ const PrintableReport = () => {
                     <p className="text-gray-500 mt-1">Performance Overview</p>
                 </div>
                 <div className="text-right">
-                    <h2 className="text-xl font-bold text-indigo-700">FAREEZ INSTALLATION SERVICES</h2>
+                    <h2 className="text-xl font-bold text-indigo-700">instaliQ</h2>
                     <p className="text-sm text-gray-600">Generated on: {new Date().toLocaleDateString()}</p>
                     <p className="text-sm font-semibold text-gray-800 mt-2 bg-indigo-50 px-3 py-1 rounded inline-block">
                         Period: {periodLabels[period]}
@@ -169,7 +169,7 @@ const PrintableReport = () => {
 
             {/* Footer */}
             <div className="mt-12 pt-8 border-t border-gray-200 flex justify-between items-center text-xs text-gray-400">
-                <p>Fareez Installation Services - Confidential Internal Report</p>
+                <p>instaliQ - Confidential Internal Report</p>
                 <p>System Generated</p>
             </div>
 

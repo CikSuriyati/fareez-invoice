@@ -1006,6 +1006,10 @@ function doPost(e) {
            
            // 4. Update "Doc Link" in Sheet (Col I / Index 8)
            projectSheet.getRange(projectRow, 9).setValue(fileUrl);
+           
+           // 5. Update "Document Type Generated" in Sheet (Col H / Index 7)
+           projectSheet.getRange(projectRow, 8).setValue("Generated (" + docType + ")");
+           Logger.log('✓ Updated Document Type: Generated (' + docType + ')');
         }
       } catch (pdfErr) {
         Logger.log("❌ Auto-PDF Generation Failed: " + pdfErr.toString());
@@ -1959,7 +1963,7 @@ function sendMonthlyReport() {
 
             <p>The full detailed PDF report is attached.</p>
             <br>
-            <p style="font-size: 12px; color: #888;">Fareez Installation Services | Automated System</p>
+            <p style="font-size: 12px; color: #888;">instaliQ | Automated System</p>
         </div>
       </div>
     `;
@@ -1967,7 +1971,7 @@ function sendMonthlyReport() {
     GmailApp.sendEmail(userEmail, "Business Report: " + periodStr, "Please find attached report.", {
       htmlBody: emailBody,
       attachments: [pdf],
-      name: "Fareez Reporting System"
+      name: "instaliQ Reporting System"
     });
 
     return "Sent to " + userEmail;
@@ -2209,7 +2213,7 @@ function buildReportHtml(data) {
         </div>
         
         <div class="footer">
-          Automated Report by Fareez Installation Services | Generated via Google Apps Script
+          Automated Report by instaliQ | Generated via Google Apps Script
         </div>
       </body>
     </html>

@@ -1,5 +1,6 @@
 import React from 'react';
 import '../invoice.css'; // Import the raw CSS provided
+import instaliQLogo from '/public/instaliq-logo.png';
 
 const InvoicePreview = ({ data }) => {
   const {
@@ -21,13 +22,13 @@ const InvoicePreview = ({ data }) => {
     <div className="invoice-preview-container" id="printable-invoice">
       <div className="invoice-header">
         <div className="logo-container">
-          <div className="text-logo">FF</div>
+          <img src={instaliQLogo} alt="instaliQ" style={{ height: '100px', objectFit: 'contain', marginBottom: '8px' }} />
           <div className="company-info">
-            <strong>FAREEZ INSTALLATION SERVICES</strong><br />
+            <strong>instaliQ Installation Services</strong><br />
             No 9 Jalan PJU10/1 Damansara Damai<br />
             47830 Petaling Jaya Selangor<br />
             Phone: +60 11-2549 5182<br />
-            Email: fareezfauzimy@gmail.com
+            Email: admin@instaliq.my
           </div>
         </div>
 
@@ -174,7 +175,7 @@ const InvoicePreview = ({ data }) => {
             </div>
             <div style={{ width: '50%', fontSize: '9.5px', color: '#666', borderLeft: '1px solid #eee', paddingLeft: '12px' }}>
               <strong>DISCLAIMER</strong><br />
-              All payments must be made to the name/account provided. We (Fareez Installation Services) will not be held responsible for errors in entering account details or recipient information.
+              All payments must be made to the name/account provided. We (instaliQ) will not be held responsible for errors in entering account details or recipient information.
             </div>
           </div>
 
@@ -184,7 +185,7 @@ const InvoicePreview = ({ data }) => {
               <li><strong>Inclusions:</strong> Prices listed are for labor and installation services only.</li>
               <li><strong>Exclusions:</strong> Cost of bulbs, fans, and external wiring materials are not included unless specified.</li>
               <li><strong>Transportation:</strong> A transportation fee applies based on location. RM20 base + RM1.50/km. Excludes parking, tolls, building entry, condo access, or permits. If incurred, they will be added as separate items.</li>
-              <li><strong>Liability:</strong> Fareez Installation Services is not responsible for payments made to incorrect account details.</li>
+              <li><strong>Liability:</strong> instaliQ is not responsible for payments made to incorrect account details.</li>
               <li><strong>Working Hours:</strong> Standard hours: 9:00 AM – 6:00 PM (Fri–Sun). Jobs must be booked in advance. Same-day or urgent appointments subject to availability.</li>
               <li><strong>Warranty:</strong> 30-day workmanship warranty from completion. Does not cover manufacturer defects or internal component failures of appliances.</li>
             </ul>

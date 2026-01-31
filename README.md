@@ -1,16 +1,83 @@
-# React + Vite
+# instaliQ Invoice System
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern, mobile-first invoice and quotation management system built for instaliQ installation services.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- 📱 **Mobile-First Design** - Optimized for on-the-go invoice creation
+- 📄 **Multiple Document Types** - Invoices, Quotations, Receipts
+- 📊 **Dashboard & Reports** - Track sales, expenses, and profitability
+- 📧 **Email Integration** - Send professional invoices directly to clients
+- 💾 **Google Sheets Backend** - Automatic data backup and synchronization
+- 🖨️ **PDF Generation** - High-quality document export and printing
+- 📱 **WhatsApp Sharing** - Quick document sharing via mobile
+- ⚡ **Quick Update** - Fast status changes for on-site work
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Frontend**: React + Vite
+- **Styling**: Tailwind CSS
+- **Backend**: Google Apps Script + Google Sheets
+- **PDF**: html2canvas + jsPDF
+- **Deployment**: GitHub Pages
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Prerequisites
+
+- Node.js (v16 or higher)
+- npm or yarn
+
+### Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/CikSuriyati/instaliq-invoice.git
+cd instaliq-invoice
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
+```
+
+### Build for Production
+
+```bash
+# Build the project
+npm run build
+
+# Preview the build
+npm run preview
+```
+
+### Deployment
+
+```bash
+# Deploy to GitHub Pages
+npm run deploy
+```
+
+## Project Structure
+
+```
+instaliq-invoice/
+├── src/
+│   ├── components/      # React components
+│   ├── services/        # API services
+│   ├── App.jsx         # Main app component
+│   └── main.jsx        # Entry point
+├── public/             # Static assets
+└── dist/              # Build output
+```
+
+## Contact
+
+**instaliQ**  
+Email: admin@instaliq.my  
+Phone: +60 11-2549 5182
+
+---
+
+Built with ❤️ by instaliQ

@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { fetchServiceReport } from '../services/sheetApi';
-import { BarChart, Calendar, TrendingUp, FileText } from 'lucide-react';
+import { fetchServiceReport, fetchCompanyReport } from '../services/sheetApi';
+import { BarChart, Calendar, TrendingUp, FileText, Eye } from 'lucide-react';
 
 const Reports = () => {
     const [period, setPeriod] = useState('ALL'); // 'MONTH', 'YEAR', 'ALL'
     const [report, setReport] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [showPreview, setShowPreview] = useState(false);
+    const [previewData, setPreviewData] = useState(null);
+    const [previewLoading, setPreviewLoading] = useState(false);
 
     useEffect(() => {
         loadReport();
@@ -24,6 +27,14 @@ const Reports = () => {
         if (period === 'MONTH') return 'This Month';
         if (period === 'YEAR') return 'This Year';
         return 'All Time';
+    };
+
+    const handleViewReport = async () => {
+        setPreviewLoading(true);
+        setShowPreview(true);
+        const data = await fetchCompanyReport(period);
+        setPreviewData(data);
+        setPreviewLoading(false);
     };
 
     const [modalConfig, setModalConfig] = useState({ show: false, title: '', message: '', onConfirm: null });
@@ -108,18 +119,24 @@ const Reports = () => {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex flex-row gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                         <button
-                            onClick={handleTestEmail}
-                            className="bg-green-700 text-white px-4 py-3 rounded-lg shadow hover:bg-green-600 flex items-center justify-center gap-2 text-sm font-semibold flex-1"
+                            onClick={handleViewReport}
+                            className="bg-indigo-600 text-white px-3 py-3 rounded-lg shadow hover:bg-indigo-700 flex items-center justify-center gap-1 text-xs md:text-sm font-semibold"
                         >
-                            <Calendar size={16} /> Send Report Now
+                            <Eye size={16} /> <span className="hidden md:inline">View</span> Report
                         </button>
                         <button
                             onClick={() => window.open(`?view=PRINTABLE_REPORT&period=${period}`, '_blank')}
-                            className="bg-indigo-900 text-white px-4 py-3 rounded-lg shadow hover:bg-indigo-800 flex items-center justify-center gap-2 text-sm font-semibold flex-1"
+                            className="bg-indigo-900 text-white px-3 py-3 rounded-lg shadow hover:bg-indigo-800 flex items-center justify-center gap-1 text-xs md:text-sm font-semibold"
                         >
-                            <FileText size={16} /> Print Report
+                            <FileText size={16} /> <span className="hidden md:inline">Print</span> Report
+                        </button>
+                        <button
+                            onClick={handleTestEmail}
+                            className="bg-green-700 text-white px-3 py-3 rounded-lg shadow hover:bg-green-600 flex items-center justify-center gap-1 text-xs md:text-sm font-semibold"
+                        >
+                            <Calendar size={16} /> <span className="hidden md:inline">Send</span> Report
                         </button>
                     </div>
 
@@ -272,6 +289,174 @@ const Reports = () => {
                                 ) : (
                                     'Confirm'
                                 )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Report Preview Modal */}
+            {showPreview && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                        {/* Modal Header */}
+                        <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-indigo-50">
+                            <h3 className="text-lg font-bold text-gray-800">Company Report Preview</h3>
+                            <button
+                                onClick={() => setShowPreview(false)}
+                                className="text-gray-500 hover:text-gray-700 font-bold text-xl"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="overflow-y-auto flex-1 p-6">
+                            {previewLoading ? (
+                                <div className="text-center py-12 text-gray-500">Loading report preview...</div>
+                            ) : previewData ? (
+                                <div className="space-y-6">
+                                    {/* Report Header */}
+                                    <div className="flex justify-between items-start border-b-2 border-indigo-900 pb-4">
+                                        <div>
+                                            <h1 className="text-2xl font-bold text-gray-900 uppercase tracking-widest">Company Report</h1>
+                                            <p className="text-gray-500 mt-1 text-sm">Performance Overview</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <h2 className="text-lg font-bold text-indigo-700">instaliQ</h2>
+                                            <p className="text-xs text-gray-600">Generated on: {new Date().toLocaleDateString()}</p>
+                                            <p className="text-xs font-semibold text-gray-800 mt-1 bg-indigo-50 px-2 py-1 rounded inline-block">
+                                                Period: {getPeriodLabel()}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Financial Summary */}
+                                    <div>
+                                        <h3 className="text-base font-bold text-gray-700 mb-3 border-l-4 border-indigo-500 pl-2 uppercase">Financial Summary</h3>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                            <div className="p-3 bg-gray-50 border border-gray-200 rounded">
+                                                <span className="block text-xs text-gray-500 uppercase font-semibold">Total Revenue</span>
+                                                <span className="block text-lg font-bold text-gray-800">RM {previewData.financials.sales.toFixed(2)}</span>
+                                            </div>
+                                            <div className="p-3 bg-gray-50 border border-gray-200 rounded">
+                                                <span className="block text-xs text-gray-500 uppercase font-semibold">Collected</span>
+                                                <span className="block text-lg font-bold text-green-700">RM {previewData.financials.collected.toFixed(2)}</span>
+                                            </div>
+                                            <div className="p-3 bg-gray-50 border border-gray-200 rounded">
+                                                <span className="block text-xs text-gray-500 uppercase font-semibold">Expenses</span>
+                                                <span className="block text-lg font-bold text-red-600">RM {previewData.financials.expenses.toFixed(2)}</span>
+                                            </div>
+                                            <div className="p-3 bg-indigo-50 border border-indigo-200 rounded">
+                                                <span className="block text-xs text-indigo-800 uppercase font-semibold">Net Profit</span>
+                                                <span className="block text-lg font-bold text-indigo-900">RM {previewData.financials.net.toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {/* Project Stats */}
+                                        <div>
+                                            <h3 className="text-base font-bold text-gray-700 mb-3 border-l-4 border-blue-500 pl-2 uppercase">Project Activity</h3>
+                                            <table className="w-full text-sm">
+                                                <tbody>
+                                                    <tr className="border-b">
+                                                        <td className="py-2 text-gray-600">Total Projects</td>
+                                                        <td className="py-2 font-bold text-right">{previewData.projects.total}</td>
+                                                    </tr>
+                                                    <tr className="border-b">
+                                                        <td className="py-2 text-gray-600">Fully Paid</td>
+                                                        <td className="py-2 font-bold text-right text-green-600">{previewData.projects.paid}</td>
+                                                    </tr>
+                                                    <tr className="border-b">
+                                                        <td className="py-2 text-gray-600">Quotations</td>
+                                                        <td className="py-2 font-bold text-right text-blue-600">{previewData.projects.quotation}</td>
+                                                    </tr>
+                                                    <tr className="border-b">
+                                                        <td className="py-2 text-gray-600">Outstanding</td>
+                                                        <td className="py-2 font-bold text-right text-red-600">RM {previewData.financials.unpaid.toFixed(2)}</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {/* Top Expenses */}
+                                        <div>
+                                            <h3 className="text-base font-bold text-gray-700 mb-3 border-l-4 border-red-500 pl-2 uppercase">Top Expenses</h3>
+                                            <table className="w-full text-sm">
+                                                <thead className="bg-gray-100">
+                                                    <tr>
+                                                        <th className="py-2 px-2 text-left text-xs">Store</th>
+                                                        <th className="py-2 px-2 text-right text-xs">Amount</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {previewData.expenses.length > 0 ? previewData.expenses.slice(0, 5).map((exp, i) => (
+                                                        <tr key={i} className="border-b">
+                                                            <td className="py-2 px-2 text-gray-700 truncate">{exp.store}</td>
+                                                            <td className="py-2 px-2 text-right font-medium">RM {exp.amount.toFixed(2)}</td>
+                                                        </tr>
+                                                    )) : (
+                                                        <tr>
+                                                            <td colSpan="2" className="py-4 text-center text-gray-500 italic text-xs">No data</td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {/* Service Performance */}
+                                    <div>
+                                        <h3 className="text-base font-bold text-gray-700 mb-3 border-l-4 border-green-500 pl-2 uppercase">Top Services</h3>
+                                        <div className="bg-white rounded border border-gray-200 overflow-hidden">
+                                            <table className="w-full text-sm">
+                                                <thead className="bg-gray-800 text-white">
+                                                    <tr>
+                                                        <th className="py-2 px-3 text-left text-xs">#</th>
+                                                        <th className="py-2 px-3 text-left text-xs">Service</th>
+                                                        <th className="py-2 px-3 text-center text-xs">Qty</th>
+                                                        <th className="py-2 px-3 text-right text-xs">Revenue</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {previewData.services.length > 0 ? previewData.services.map((svc, i) => (
+                                                        <tr key={i} className="border-b hover:bg-gray-50">
+                                                            <td className="py-2 px-3 text-gray-500">{i + 1}</td>
+                                                            <td className="py-2 px-3 font-semibold text-gray-800">{svc.type}</td>
+                                                            <td className="py-2 px-3 text-center">
+                                                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-bold">{svc.qty}</span>
+                                                            </td>
+                                                            <td className="py-2 px-3 text-right">RM {svc.revenue.toFixed(2)}</td>
+                                                        </tr>
+                                                    )) : (
+                                                        <tr>
+                                                            <td colSpan="4" className="py-6 text-center text-gray-500">No service data</td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+
+                                    {/* Footer */}
+                                    <div className="mt-6 pt-4 border-t border-gray-200 flex justify-between items-center text-xs text-gray-400">
+                                        <p>instaliQ - Confidential Internal Report</p>
+                                        <p>System Generated</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-12 text-red-500">Failed to load report data</div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-end gap-2">
+                            <button
+                                onClick={() => setShowPreview(false)}
+                                className="px-4 py-2 text-gray-700 bg-white border border-gray-300 hover:bg-gray-100 rounded text-sm font-medium"
+                            >
+                                Close
                             </button>
                         </div>
                     </div>

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import './Login.css';
+import instaliQLogo from '/public/instaliq-logo.png';
 
 function Login({ onLoginSuccess }) {
     const [isChecking, setIsChecking] = useState(false);
@@ -37,8 +38,10 @@ function Login({ onLoginSuccess }) {
         <div className="login-overlay">
             <div className="login-card">
                 <div className="logo-section">
-                    <div style={{ fontFamily: '"Times New Roman", Times, serif', fontSize: '64px', fontWeight: 'bold', color: '#1A237E', marginBottom: '0.5rem', textAlign: 'center', width: '100%' }}>FF</div>
-                    <h1>Fareez Invoice System</h1>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
+                        <img src={instaliQLogo} alt="instaliQ" style={{ height: '280px', objectFit: 'contain', filter: 'contrast(1.2) brightness(0.95)' }} />
+                    </div>
+                    <h1>instaliQ Invoice System</h1>
                 </div>
 
                 <p className="login-subtitle">

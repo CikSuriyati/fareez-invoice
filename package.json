@@ -1,9 +1,9 @@
 {
-  "name": "fareez-invoice",
+  "name": "instaliq-invoice",
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://CikSuriyati.github.io/fareez-invoice/",
+  "homepage": "https://CikSuriyati.github.io/instaliq-invoice/",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

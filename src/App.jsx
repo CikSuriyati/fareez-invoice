@@ -11,6 +11,7 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { saveInvoiceToSheet, fetchNextId, fetchProjectById, sendInvoiceEmail, saveInvoicePDF, fetchProjectDocuments, fetchFileData } from './services/sheetApi';
 import { FileText, LayoutDashboard, ShoppingBag, BarChart, Zap, Printer, Share2 } from 'lucide-react';
+import instaliQLogo from '/public/instaliq-logo.png';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -320,7 +321,7 @@ function App() {
       const emailBody = `
         <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto;">
           <div style="background-color: #312e81; padding: 20px; text-align: center;">
-            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Fareez Installation Services</h1>
+            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">instaliQ</h1>
           </div>
           <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none;">
             <p>Dear <strong>${invoiceData.project.customer || 'Valued Customer'}</strong>,</p>
@@ -363,7 +364,7 @@ function App() {
             <br/>
             <p>Best regards,</p>
             <p><strong>Muhammad Fareez</strong><br/>
-            Fareez Installation Services<br/>
+            instaliQ<br/>
             Phone: +60 11-2549 5182</p>
           </div>
           <div style="text-align: center; padding: 15px; color: #666; font-size: 12px;">
@@ -374,7 +375,7 @@ function App() {
 
       const payload = {
         to: recipientEmail,
-        subject: `${invoiceData.type} ${invoiceData.project.id} - Fareez Installation`,
+        subject: `${invoiceData.type} ${invoiceData.project.id} - instaliQ`,
         body: emailBody,
         filename: filename,
         base64: pdfBase64
@@ -495,11 +496,11 @@ function App() {
                 className="flex items-center cursor-pointer group"
                 onClick={() => setView('DASHBOARD')}
               >
-                <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center text-indigo-900 mr-3 shadow-md group-hover:bg-indigo-50 transition-colors border border-indigo-200">
-                  <span style={{ fontFamily: "'Times New Roman', serif" }} className="text-xl font-black tracking-tighter">FF</span>
+                <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center mr-3 shadow-md group-hover:bg-indigo-50 transition-colors border border-indigo-200 p-1">
+                  <img src={instaliQLogo} alt="instaliQ" className="w-full h-full object-contain" />
                 </div>
                 <span className="text-white font-bold text-lg tracking-tight">
-                  Fareez Invoice <span className="text-indigo-300 text-xs font-normal ml-1">v3.0</span>
+                  instaliQ Invoice <span className="text-indigo-300 text-xs font-normal ml-1">v3.0</span>
                 </span>
               </div>
 
